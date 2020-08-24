@@ -96,7 +96,7 @@ def estimateZ0(zm, ws, wd, ustar, mo_len, wd_win=45):
     return z0med
 
 def estimateFootprint(zm, z0, ws, ustar, mo_len, sigma_v, \
-        grid_domain, grid_res, wd=None):
+        grid_domain, grid_res, mxy, wd=None):
     """Estimate footprint of one measurement at one time step using Kormann &
     Meixner model.
 
@@ -132,10 +132,11 @@ def estimateFootprint(zm, z0, ws, ustar, mo_len, sigma_v, \
         The rectangular domain of the grid on which the footprint will be
         estimated. The domain is defined by a bounding box [xmin, xmax, ymin,
         ymax] in meters, in a coordinate system with the measurement/receptor
-        at [0, 0, zm]. The X and Y directions of this coordinate system are set
-        up in one the following two ways.
+        at the location given by the parameter `mxy` within the `grid_domain`.
+        The X and Y directions of this coordinate system are set up in one the
+        following two ways.
         
-        If wind direction is given by the optional parameter wd, the grid will
+        If wind direction is given by the optional parameter `wd`, the grid will
         be set up to align with the X-Y axes where wind direction is measured
         (clockwise from positive Y, that is, similar to how azimuth angle is
         measured). For example, if wind direction is measured with regard to
@@ -152,6 +153,10 @@ def estimateFootprint(zm, z0, ws, ustar, mo_len, sigma_v, \
     grid_res : float
         The resolution (meter) of the grid on which the footprint will be
         estimated. 
+
+    mxy : array-like of shape (2,)
+        The [x, y] of the measurement/receptor in the coordinate system of
+        `grid_domain`. 
 
     wd : float
         The wind direction (degree), an angle where wind comes from. It is
@@ -173,19 +178,19 @@ def estimateFootprint(zm, z0, ws, ustar, mo_len, sigma_v, \
     -------
     grid_x : ndarray of shape (grid_ysize, grid_xsize)
         The X coordinates of cell centers of the grid on which flux footprint
-        is estimated. The grid_ysize and grid_xsize are the number of cells
+        is estimated. The `grid_ysize` and `grid_xsize` are the number of cells
         along X and Y axes, that is, columns and rows. 
 
     grid_y : ndarray of shape (grid_ysize, grid_xsize)
         The Y coordinates of cell centers of the grid on which flux footprint
-        is estimated. The grid_ysize and grid_xsize are the number of cells
+        is estimated. The `grid_ysize` and `grid_xsize` are the number of cells
         along X and Y axes, that is, columns and rows. 
 
     grid_ffm : ndarray of shape (grid_ysize, grid_xsize)
         The flux footprint, phi(x, y, z) in (Kormann and Meixner, 2001) that
         describes the flux portion (m^-2) seen by the measurement/receptor. The
-        grid_ysize and grid_xsize are the number of cells along X and Y axes,
-        that is, columns and rows. 
+        `grid_ysize` and `grid_xsize` are the number of cells along X and Y
+        axes, that is, columns and rows. 
 
     Refernces
     ---------
@@ -247,11 +252,12 @@ def estimateFootprint(zm, z0, ws, ustar, mo_len, sigma_v, \
     grid_ffm = np.zeros_like(grid_x)
 
     if wd is None:
-        # No wind direction given, the footprint grid aligns with
-        # along-wind and cross-wind directions. grid_x and grid_y coordinates
-        # can be used directly as x and y in the footprint function. 
-        x = grid_x
-        y = grid_y
+        # No wind direction given, the footprint grid aligns with along-wind
+        # and cross-wind directions. grid_x and grid_y coordinates do NOT need
+        # to be rotated but ONLY need to be shifted such that the
+        # measurement/receptor's coordinates are (0, 0). The post-shift x and y
+        # can be used in the footprint function.
+        x, y = grid_x - mxy[0], grid_y - mxy[1]
     else:
         # Given a wind direction angle, the footprint grid will align with the
         # coordinate axes where wind direction is measured. We need to
@@ -259,13 +265,15 @@ def estimateFootprint(zm, z0, ws, ustar, mo_len, sigma_v, \
         # and y in the coordinate system that aligns with along-wind and
         # cross-wind directions for their use in the footprint function.
         #
-        # Transform coordinates in a polar coordinate system for simplicity. 
-        rho = np.sqrt(grid_x**2 + grid_y**2)
+        # First shift (0, 0) to measurement/receptor location and then rotate
+        # coordinates in a polar coordinate system for simplicity. 
+        x, y = grid_x - mxy[0], grid_y - mxy[1]
+        rho = np.sqrt(x**2 + y**2)
         # numpy's arctan2 function defines angular coordinates theta
         # counter-clockwise from X positive. Pay extra attention here because
         # this is different from the grid coordinate system where wind
         # direction angle is defined, clockwise from Y positive. 
-        theta = np.arctan2(grid_y, grid_x)
+        theta = np.arctan2(y, x)
         new_theta = theta + np.deg2rad(wd) - np.pi*0.5
         x = rho * np.cos(new_theta)
         y = rho * np.sin(new_theta)
