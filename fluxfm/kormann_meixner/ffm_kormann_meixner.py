@@ -11,7 +11,7 @@ from scipy import ndimage as spndimage
 
 von_karman = 0.4
 
-def estimateZ0(zm, ws, wd, ustar, mo_len):
+def estimateZ0(zm, ws, wd, ustar, mo_len, wd_win=45):
     """Estimate roughness lengths based on Kormann-Meixner footprint model. 
 
     Estimate roughness length (z0) by relating power-law wind profile in
@@ -20,8 +20,9 @@ def estimateZ0(zm, ws, wd, ustar, mo_len):
 
     The number of input observations at multiple time steps should be large
     enough to cover all possible wind directions because this function outputs
-    roughness lengths that are smoothed within a 45-degree window of wind
-    directions at 1-degree step. 
+    roughness lengths that are smoothed within a given window of wind
+    directions at 1-degree step. The default size of wind direction window for
+    smoothing is 45-degree.
 
     The implementation is based on a MATLAB script originally by Jakob Sievers
     (05/2013) but revised and annotated by Christian Wille.
@@ -42,6 +43,10 @@ def estimateZ0(zm, ws, wd, ustar, mo_len):
 
     mo_len : ndarray of shape (n_obs,)
         List of Monin-Obukhov length (meter) per observation at one time step. 
+
+    wd_win : float
+        Window size of wind directions to smooth estimates of roughness length
+        per each 1-degree wind direction.
 
     Returns
     -------
@@ -78,7 +83,7 @@ def estimateZ0(zm, ws, wd, ustar, mo_len):
     # (Kormann and Meixner, 2001) is smoothed using median in a 45-deg window
     # of wind directions at 1-degree step. This is where the size of input
     # observations matter.
-    halfbinwidth = 22
+    halfbinwidth = wd_win * 0.5
     z0med = np.zeros_like(z0) + np.nan;
     for kk in range(0, 360):
         wd_wrapped = wd.copy();
