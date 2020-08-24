@@ -28,24 +28,24 @@ def estimateZ0(zm, ws, wd, ustar, mo_len):
 
     Parameters
     ----------
-    zm : ndarray of shape (n_intervals,)
+    zm : ndarray of shape (n_obs,)
         The list of measurement height (meter) per measurement intervals. 
 
-    ws : ndarray of shape (n_intervals,)
+    ws : ndarray of shape (n_obs,)
         The list of wind speed (m*s^-1) per measurement interval.
 
-    wd : ndarray of shape (n_intervals,)
+    wd : ndarray of shape (n_obs,)
         The list of wind direction (degree) per measurement interval.
 
-    ustar : ndarray of shape (n_intervals,)
+    ustar : ndarray of shape (n_obs,)
         The list of friction velocity (m*s^-1) per measurement interval.
 
-    mo_len : ndarray of shape (n_intervals,)
+    mo_len : ndarray of shape (n_obs,)
         The list of Monin-Obukhov length (meter) per measurement interval. 
 
     Returns
     -------
-    z0med : ndarray of shape (n_intervals,)
+    z0med : ndarray of shape (n_obs,)
         The list of estimated roughness length, z0 (meter) per measurement
         interval.
 
@@ -58,12 +58,12 @@ def estimateZ0(zm, ws, wd, ustar, mo_len):
     # von Karman constant
     k = von_karman
 
-    n_intervals = len(zm)
+    n_obs = len(zm)
     # Check if inputs are of the same length
-    if (n_intervals != len(ws) \
-            or n_intervals != len(wd) \
-            or n_intervals != len(ustar) \
-            or n_intervals != len(mo_len)):
+    if (n_obs != len(ws) \
+            or n_obs != len(wd) \
+            or n_obs != len(ustar) \
+            or n_obs != len(mo_len)):
         raise RuntimeError("Input parameters must be of the same length!")
 
     psi_m = _psiM(zm, mo_len)
@@ -279,7 +279,7 @@ def _phiM(zm, mo_len):
 
     Returns
     -------
-        phi_m : ndarray of shape (n_intervals,)
+        phi_m : ndarray of shape (n_obs,)
             Values of phi_m in (Kormann and Meixner, 2001).
     """
     phi_m = np.zeros_like(zm)
@@ -298,7 +298,7 @@ def _phiC(zm, mo_len):
 
     Returns
     -------
-        phi_c : ndarray of shape (n_intervals,)
+        phi_c : ndarray of shape (n_obs,)
             Values of phi_c in (Kormann and Meixner, 2001).
     """
     phi_c = np.zeros_like(zm)
@@ -317,7 +317,7 @@ def _psiM(zm, mo_len):
 
     Returns
     -------
-        psi_m : ndarray of shape (n_intervals,)
+        psi_m : ndarray of shape (n_obs,)
             Values of psi_m in (Kormann and Meixner, 2001).
     """
     psi_m = np.zeros_like(zm)
@@ -337,21 +337,21 @@ def _mParam(zm, ws, ustar, mo_len):
 
     Parameters
     ----------
-    zm : ndarray of shape (n_intervals,)
+    zm : ndarray of shape (n_obs,)
         The list of measurement height (meter) per measurement intervals. 
 
-    ws : ndarray of shape (n_intervals,)
+    ws : ndarray of shape (n_obs,)
         The list of wind speed (m*s^-1) per measurement interval.
 
-    ustar : ndarray of shape (n_intervals,)
+    ustar : ndarray of shape (n_obs,)
         The list of friction velocity (m*s^-1) per measurement interval.
 
-    mo_len : ndarray of shape (n_intervals,)
+    mo_len : ndarray of shape (n_obs,)
         The list of Monin-Obukhov length (meter) per measurement interval. 
 
     Returns
     -------
-        m : ndarray of shape (n_intervals,)
+        m : ndarray of shape (n_obs,)
             Values of m in the Eq. (11) of (Kormann and Meixner, 2001).
     """
     k = von_karman
@@ -369,15 +369,15 @@ def _nParam(zm, mo_len):
 
     Parameters
     ----------
-    zm : ndarray of shape (n_intervals,)
+    zm : ndarray of shape (n_obs,)
         The list of measurement height (meter) per measurement intervals. 
 
-    mo_len : ndarray of shape (n_intervals,)
+    mo_len : ndarray of shape (n_obs,)
         The list of Monin-Obukhov length (meter) per measurement interval. 
 
     Returns
     -------
-        n : ndarray of shape (n_intervals,)
+        n : ndarray of shape (n_obs,)
             Values of n in the Eq. (11) of (Kormann and Meixner, 2001).
     """
     # Estimate m using the analytical approach in (Kormann and Meixner, 2001),
