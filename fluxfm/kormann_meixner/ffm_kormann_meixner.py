@@ -18,10 +18,10 @@ def estimateZ0(zm, ws, wd, ustar, mo_len):
     Kormann & Meixner's footprint model (Kormann and Meixner, 2001) to log wind
     profile in Monin-Obukhov similarity theory. 
 
-    The number of input measurement intervals should be large enough to cover
-    all possible wind directions because this function outputs roughness
-    lengths that are smoothed within a 45-degree window of wind directions at
-    1-degree step. 
+    The number of input observations at multiple time steps should be large
+    enough to cover all possible wind directions because this function outputs
+    roughness lengths that are smoothed within a 45-degree window of wind
+    directions at 1-degree step. 
 
     The implementation is based on a MATLAB script originally by Jakob Sievers
     (05/2013) but revised and annotated by Christian Wille.
@@ -29,24 +29,24 @@ def estimateZ0(zm, ws, wd, ustar, mo_len):
     Parameters
     ----------
     zm : ndarray of shape (n_obs,)
-        The list of measurement height (meter) per measurement intervals. 
+        List of measurement height (meter) per observation at one time step.
 
     ws : ndarray of shape (n_obs,)
-        The list of wind speed (m*s^-1) per measurement interval.
+        List of wind speed (m*s^-1) per observation at one time step.
 
     wd : ndarray of shape (n_obs,)
-        The list of wind direction (degree) per measurement interval.
+        List of wind direction (degree) per observation at one time step.
 
     ustar : ndarray of shape (n_obs,)
-        The list of friction velocity (m*s^-1) per measurement interval.
+        List of friction velocity (m*s^-1) per observation at one time step.
 
     mo_len : ndarray of shape (n_obs,)
-        The list of Monin-Obukhov length (meter) per measurement interval. 
+        List of Monin-Obukhov length (meter) per observation at one time step. 
 
     Returns
     -------
     z0med : ndarray of shape (n_obs,)
-        The list of estimated roughness length, z0 (meter) per measurement
+        List of estimated roughness length, z0 (meter) per measurement
         interval.
 
     Refernces
@@ -77,7 +77,7 @@ def estimateZ0(zm, ws, wd, ustar, mo_len):
     # NOTE: here z0, raw values of roughness length from solving Eq. (31) in
     # (Kormann and Meixner, 2001) is smoothed using median in a 45-deg window
     # of wind directions at 1-degree step. This is where the size of input
-    # measurement intervals matter.
+    # observations matter.
     halfbinwidth = 22
     z0med = np.zeros_like(z0) + np.nan;
     for kk in range(0, 360):
@@ -133,32 +133,37 @@ def estimateFootprint(zm, z0, ws, ustar, mo_len, sigma_v, \
         
         If wind direction is given by the optional parameter wd, the grid will
         be set up to align with the X-Y axes where wind direction is measured
-        (clockwise from Y axis, that is, similar to azimuth angle). Usually,
-        wind direction is measured with regard to true/due north. Then this
-        coordinate system will have the X axis from west towards east and the Y
-        axis from south towards north. 
+        (clockwise from positive Y, that is, similar to how azimuth angle is
+        measured). For example, if wind direction is measured with regard to
+        true/due north. Then the output grid will align with the X axis from
+        west towards east and the Y axis from south towards north. 
 
-        If no wind direction is given, by default the X axis points to the
-        opposite of wind direction (i.e., positive X indicates upwind
-        distances), then the Y axis is defined as perpendicular to the wind
-        direction (i.e., cross-wind direction) and with the Y axis direction
-        chosen to produce right-handed coordinates. 
+        If no wind direction is given, the output grid aligns with along-wind
+        and cross-wind direction.  Specifically in this coordinate system, the
+        X axis points to the wind direction angle (where wind comes from, i.e.,
+        positive X indicates upwind distances), then the Y axis is defined as
+        perpendicular to the wind direction (i.e., cross-wind direction) and
+        with the Y axis direction chosen to produce right-handed coordinates. 
         
     grid_res : float
         The resolution (meter) of the grid on which the footprint will be
         estimated. 
 
     wd : float
-        The wind direction (degree), clockwise with regard to the Y axis of a
-        cardinal coordinate system. The orientation of the output grid of flux
-        footprint will be aligned with the axes of this coordinate system. If
-        you want the output grid aligns with a specific coordinate system,
-        e.g., a UTM zone where additional raster data for analysis with
-        footprints are stored, give an adjusted *wd* value clockwise with
-        regard to its Y axis (grid north) clockwise. Search true north and grid
-        north online for more information to understand the need for adjusting
-        angular values of wind directions to produce a footprint grid of
-        desired alignment. 
+        The wind direction (degree), an angle where wind comes from. It is
+        measured clockwise with regard to the Y axis of a cardinal coordinate
+        system. The output grid of flux footprint will align with the axes of
+        this coordinate system. 
+
+        If you want the output grid to align with a pre-defined raster grid,
+        you have to provide an adjusted wind direction angle that is with
+        regard to the positive Y or north of this pre-defined grid system. That
+        is, you need to change common wind direction angles based on true north
+        to an adjusted value based on grid north. True north and grid north are
+        usually not the same in many map projections where raster grids are
+        defined. The difference between true north and grid north is called
+        "meridian convergence" of a map projection. It depends on geolocation
+        and map projection. 
 
     Returns
     -------
@@ -238,17 +243,17 @@ def estimateFootprint(zm, z0, ws, ustar, mo_len, sigma_v, \
     grid_ffm = np.zeros_like(grid_x)
 
     if wd is None:
-        # No wind direction given, the footprint grid is aligned with
+        # No wind direction given, the footprint grid aligns with
         # along-wind and cross-wind directions. grid_x and grid_y coordinates
         # can be used directly as x and y in the footprint function. 
         x = grid_x
         y = grid_y
     else:
-        # Given an angle for wind direction, the footprint grid is aligned with
-        # the coordinate axes where wind direction is measured. We need to
-        # transform the grid_x and grid_y in this coordinate system to the x and
-        # y in a coordinate system aligned with along-wind and cross-wind
-        # directions that can be used by the footprint function.
+        # Given a wind direction angle, the footprint grid will align with the
+        # coordinate axes where wind direction is measured. We need to
+        # transform the grid_x and grid_y in this coordinate system to the x
+        # and y in the coordinate system that aligns with along-wind and
+        # cross-wind directions for their use in the footprint function.
         #
         # Transform coordinates in a polar coordinate system for simplicity. 
         rho = np.sqrt(grid_x**2 + grid_y**2)
@@ -276,6 +281,11 @@ def _phiM(zm, mo_len):
 
     Parameters
     ----------
+    zm : array-like of shape (n_obs,)
+        List of measurement height (meter) per observation at one time steps. 
+
+    mo_len : arry-like of shape (n_obs,)
+        List of Monin-Obukhov length (meter) per observation at one time step. 
 
     Returns
     -------
@@ -295,6 +305,11 @@ def _phiC(zm, mo_len):
 
     Parameters
     ----------
+    zm : array-like of shape (n_obs,)
+        List of measurement height (meter) per observation at one time steps. 
+
+    mo_len : arry-like of shape (n_obs,)
+        List of Monin-Obukhov length (meter) per observation at one time step. 
 
     Returns
     -------
@@ -314,6 +329,11 @@ def _psiM(zm, mo_len):
 
     Parameters
     ----------
+    zm : array-like of shape (n_obs,)
+        List of measurement height (meter) per observation at one time steps. 
+
+    mo_len : arry-like of shape (n_obs,)
+        List of Monin-Obukhov length (meter) per observation at one time step. 
 
     Returns
     -------
@@ -337,17 +357,17 @@ def _mParam(zm, ws, ustar, mo_len):
 
     Parameters
     ----------
-    zm : ndarray of shape (n_obs,)
-        The list of measurement height (meter) per measurement intervals. 
+    zm : array-like of shape (n_obs,)
+        List of measurement height (meter) per observation at one time steps. 
 
-    ws : ndarray of shape (n_obs,)
-        The list of wind speed (m*s^-1) per measurement interval.
+    ws : array-like of shape (n_obs,)
+        List of wind speed (m*s^-1) per observation at one time step.
 
-    ustar : ndarray of shape (n_obs,)
-        The list of friction velocity (m*s^-1) per measurement interval.
+    ustar : array-like of shape (n_obs,)
+        List of friction velocity (m*s^-1) per observation at one time step.
 
-    mo_len : ndarray of shape (n_obs,)
-        The list of Monin-Obukhov length (meter) per measurement interval. 
+    mo_len : array-like of shape (n_obs,)
+        List of Monin-Obukhov length (meter) per observation at one time step. 
 
     Returns
     -------
@@ -369,11 +389,11 @@ def _nParam(zm, mo_len):
 
     Parameters
     ----------
-    zm : ndarray of shape (n_obs,)
-        The list of measurement height (meter) per measurement intervals. 
+    zm : array-like of shape (n_obs,)
+        List of measurement height (meter) per observation at one time steps. 
 
-    mo_len : ndarray of shape (n_obs,)
-        The list of Monin-Obukhov length (meter) per measurement interval. 
+    mo_len : array-like of shape (n_obs,)
+        List of Monin-Obukhov length (meter) per observation at one time step. 
 
     Returns
     -------
