@@ -7,7 +7,6 @@
 
 import numpy as np
 from scipy import special as spsp
-from scipy import ndimage as spndimage
 
 von_karman = 0.4
 
