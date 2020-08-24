@@ -6,7 +6,10 @@
 # Created: Sat Aug 22 18:41:23 CEST 2020
 
 import numpy as np
+from scipy import special as spsp
 from scipy import ndimage as spndimage
+
+von_karman = 0.4
 
 def estimateZ0(zm, ws, wd, ustar, mo_len):
     """Estimate roughness lengths based on Kormann-Meixner footprint model. 
@@ -53,7 +56,7 @@ def estimateZ0(zm, ws, wd, ustar, mo_len):
     https://doi.org/10.1023/A:1018991015119
     """
     # von Karman constant
-    k = 0.4
+    k = von_karman
 
     n_intervals = len(zm)
     # Check if inputs are of the same length
@@ -78,7 +81,7 @@ def estimateZ0(zm, ws, wd, ustar, mo_len):
     halfbinwidth = 22
     z0med = np.zeros_like(z0) + np.nan;
     for kk in range(0, 360):
-        wd_wrapped = wd;
+        wd_wrapped = wd.copy();
         if kk<90:
             wd_wrapped[wd>270] = wd[wd>270] - 360
         elif kk>270:
@@ -87,6 +90,185 @@ def estimateZ0(zm, ws, wd, ustar, mo_len):
         idx2 = np.logical_and(wd_wrapped >= (kk-halfbinwidth), wd_wrapped < (kk+1+halfbinwidth))
         z0med[idx1] = np.nanmedian(z0[idx2])
     return z0med
+
+def estimateFootprint(zm, z0, ws, ustar, mo_len, sigma_v, \
+        grid_domain, grid_res, wd=None):
+    """Estimate footprint of one measurement at one time step using Kormann &
+    Meixner model.
+
+    The estimation of the footprint of one measurement at one time step here
+    uses the analytical approach in Kormann & Meixner's footprint model
+    (Kormann and Meixner, 2001) to estimate two parameters, m and n for the
+    power-law wind profile used by this footprint model.  
+
+    The implementation is based on a MATLAB script originally by Jakob Sievers
+    (05/2013) but revised and annotated by Christian Wille.
+
+    Parameters
+    ----------
+    zm : float
+        The measurement/receptor height (meter) above zero displacement plane. 
+
+    z0 : float
+        The roughness length (meter).
+
+    ws : float
+        The wind speed (m*s^-1).
+
+    ustar : float 
+        The friction velocity (m*s^-1).
+
+    mo_len : float
+        The Monin-Obukhov length (meter). 
+
+    sigma_v : float
+        The standard deviation of cross-wind (m*s^-1).
+
+    grid_domain : array-like of shape (4,)
+        The rectangular domain of the grid on which the footprint will be
+        estimated. The domain is defined by a bounding box [xmin, xmax, ymin,
+        ymax] in meters, in a coordinate system with the measurement/receptor
+        at [0, 0, zm]. The X and Y directions of this coordinate system are set
+        up in one the following two ways.
+        
+        If wind direction is given by the optional parameter wd, the grid will
+        be set up to align with the X-Y axes where wind direction is measured
+        (clockwise from Y axis, that is, similar to azimuth angle). Usually,
+        wind direction is measured with regard to true/due north. Then this
+        coordinate system will have the X axis from west towards east and the Y
+        axis from south towards north. 
+
+        If no wind direction is given, by default the X axis points to the
+        opposite of wind direction (i.e., positive X indicates upwind
+        distances), then the Y axis is defined as perpendicular to the wind
+        direction (i.e., cross-wind direction) and with the Y axis direction
+        chosen to produce right-handed coordinates. 
+        
+    grid_res : float
+        The resolution (meter) of the grid on which the footprint will be
+        estimated. 
+
+    wd : float
+        The wind direction (degree), clockwise with regard to the Y axis of a
+        cardinal coordinate system. The orientation of the output grid of flux
+        footprint will be aligned with the axes of this coordinate system. If
+        you want the output grid aligns with a specific coordinate system,
+        e.g., a UTM zone where additional raster data for analysis with
+        footprints are stored, give an adjusted *wd* value clockwise with
+        regard to its Y axis (grid north) clockwise. Search true north and grid
+        north online for more information to understand the need for adjusting
+        angular values of wind directions to produce a footprint grid of
+        desired alignment. 
+
+    Returns
+    -------
+    grid_x : ndarray of shape (grid_ysize, grid_xsize)
+        The X coordinates of cell centers of the grid on which flux footprint
+        is estimated. The grid_ysize and grid_xsize are the number of cells
+        along X and Y axes, that is, columns and rows. 
+
+    grid_y : ndarray of shape (grid_ysize, grid_xsize)
+        The Y coordinates of cell centers of the grid on which flux footprint
+        is estimated. The grid_ysize and grid_xsize are the number of cells
+        along X and Y axes, that is, columns and rows. 
+
+    grid_ffm : ndarray of shape (grid_ysize, grid_xsize)
+        The flux footprint, phi(x, y, z) in (Kormann and Meixner, 2001) that
+        describes the flux portion (m^-2) seen by the measurement/receptor. The
+        grid_ysize and grid_xsize are the number of cells along X and Y axes,
+        that is, columns and rows. 
+
+    Refernces
+    ---------
+    Kormann, R., Meixner, F.X., 2001. An Analytical Footprint Model For
+    Non-Neutral Stratification. Boundary-Layer Meteorology 99, 207–224.
+    https://doi.org/10.1023/A:1018991015119
+    """
+    # von Karman constant
+    k = von_karman
+
+    # phi_m, Eq. (33) in (Kormann and Meixner, 2001), stability function
+    phi_m = _phiM(zm, mo_len)
+    # phi_c, Eq. (34) in (Kormann and Meixner, 2001), stability function
+    phi_c = _phiC(zm, mo_len)
+    # psi_m, Eq. (35) in (Kormann and Meixner, 2001), diabatic integration of
+    # the wind profile.
+    psi_m = _psiM(zm, mo_len)
+
+    m = _mParam(zm, ws, ustar, mo_len)
+    n = _nParam(zm, mo_len)
+
+    # kappa, from solving Eq. (11) & (32) in (Kormann and Meixner, 2001),
+    # constant of eddy diffusivity in K(z)=kappa*z^n under the power-law wind
+    # profile.
+    kappa = k * zm * ustar / (phi_c * zm**n)
+
+    # U, from solving Eq. (11) & (31) in (Kormann and Meixner, 2001), constant
+    # of wind velocity in u(z)=U*z^m under the power-law wind profile.
+    U = ustar * (np.log(zm / z0) + psi_m) / (k * zm**m)
+
+    # r, p.213 in (Kormann and Meixner, 2001), shape factor
+    r = 2 + m - n
+    # mu, p.213 in (Kormann and Meixner, 2001), constant
+    mu = (1 + m) / r
+    # Xi, Eq. 19 in (Kormann and Meixner, 2001), flux length scale
+    Xi = U * zm**r / (r**2 * kappa);
+
+    # aggregate variables for use in the final footprint equation (combination
+    # of Eq. (9) and (21) in (Kormann and Meixner, 2001)).
+
+    # gamma, Eq. (18) in (Kormann and Meixner, 2001). 
+    gmm = spsp.gamma(mu);
+    mr = m / r;
+    
+    # A, a partial term of 1/sigma after combining Eq. (18) and p.212 (lines
+    # after Eq. (9)) in (Kormann and Meixner, 2001)
+    A = U / (spsp.gamma(1 / r) * sigma_v) * (kappa * r**2 / U)**mr;
+    
+    # num, a partial term of footprint phi(x,y,z) after combining Eq. (9) and
+    # (21) in (Kormann and Meixner, 2001). By combining these two equations, we
+    # will cancel a pair of gamma(mu) and hence reduce some computational
+    # errors in the final footprint calculation.
+    num = (1 / np.sqrt(2 * np.pi)) * Xi**mu;
+
+    # set up the output grid
+    xmin, xmax, ymin, ymax = tuple(grid_domain)
+    grid_x, grid_y = np.meshgrid(np.arange(xmin, xmax+grid_res, grid_res), \
+            np.arange(ymax, ymin-grid_res, -grid_res))
+    grid_ffm = np.zeros_like(grid_x)
+
+    if wd is None:
+        # No wind direction given, the footprint grid is aligned with
+        # along-wind and cross-wind directions. grid_x and grid_y coordinates
+        # can be used directly as x and y in the footprint function. 
+        x = grid_x
+        y = grid_y
+    else:
+        # Given an angle for wind direction, the footprint grid is aligned with
+        # the coordinate axes where wind direction is measured. We need to
+        # transform the grid_x and grid_y in this coordinate system to the x and
+        # y in a coordinate system aligned with along-wind and cross-wind
+        # directions that can be used by the footprint function.
+        #
+        # Transform coordinates in a polar coordinate system for simplicity. 
+        rho = np.sqrt(grid_x**2 + grid_y**2)
+        # numpy's arctan2 function defines angular coordinates theta
+        # counter-clockwise from X positive. Pay extra attention here because
+        # this is different from the grid coordinate system where wind
+        # direction angle is defined, clockwise from Y positive. 
+        theta = np.arctan2(grid_y, grid_x)
+        new_theta = theta + np.deg2rad(wd) - np.pi*0.5
+        x = rho * np.cos(new_theta)
+        y = rho * np.sin(new_theta)
+
+    # phi, footprint function, flux portion at (x, y) location seen by the
+    # measurement/receptor, by combining the Eq. (9) and (21) in (Kormann and
+    # Meixner, 2001). 
+    sflag = x > 0 # Only upwind contributes to flux measurements.
+    grid_ffm[sflag] = grid_res**2 * (num * A * x[sflag]**(mr - 2 - mu)) \
+            / (np.exp(Xi / x[sflag] + 0.5 * (gmm * y[sflag] * A * x[sflag]**(mr-1))**2))
+
+    return grid_x, grid_y, grid_ffm
 
 def _phiM(zm, mo_len):
     """Calculate phi_m using Eq. (33), the stability function in (Kormann and
@@ -147,3 +329,63 @@ def _psiM(zm, mo_len):
     sflag = mo_len >= 0
     psi_m[sflag] = 5 * zm[sflag] / mo_len[sflag]
     return psi_m
+
+def _mParam(zm, ws, ustar, mo_len):
+    """Estimate the parameter m, in Eq. (11) of (Kormann and Meixner, 2001),
+    exponent of wind velocity, in u(z)=U*z^m under the assumption of a
+    power-law wind profile.
+
+    Parameters
+    ----------
+    zm : ndarray of shape (n_intervals,)
+        The list of measurement height (meter) per measurement intervals. 
+
+    ws : ndarray of shape (n_intervals,)
+        The list of wind speed (m*s^-1) per measurement interval.
+
+    ustar : ndarray of shape (n_intervals,)
+        The list of friction velocity (m*s^-1) per measurement interval.
+
+    mo_len : ndarray of shape (n_intervals,)
+        The list of Monin-Obukhov length (meter) per measurement interval. 
+
+    Returns
+    -------
+        m : ndarray of shape (n_intervals,)
+            Values of m in the Eq. (11) of (Kormann and Meixner, 2001).
+    """
+    k = von_karman
+
+    # Estimate m using the analytical approach in (Kormann and Meixner, 2001),
+    # following the Eq. (36). 
+    phi_m = _phiM(zm, mo_len)
+    m = ustar * phi_m / (k * ws)
+    return m
+
+def _nParam(zm, mo_len):
+    """Estimate the parameter n, in Eq. (11) of (Kormann and Meixner, 2001),
+    constant of eddy diffusivity, in K(z)=kappa*z^n under the assumption of a
+    power-law wind profile.
+
+    Parameters
+    ----------
+    zm : ndarray of shape (n_intervals,)
+        The list of measurement height (meter) per measurement intervals. 
+
+    mo_len : ndarray of shape (n_intervals,)
+        The list of Monin-Obukhov length (meter) per measurement interval. 
+
+    Returns
+    -------
+        n : ndarray of shape (n_intervals,)
+            Values of n in the Eq. (11) of (Kormann and Meixner, 2001).
+    """
+    # Estimate m using the analytical approach in (Kormann and Meixner, 2001),
+    # following the Eq. (36).
+    n = np.zeros_like(zm)
+    sflag = mo_len < 0
+    n[sflag] = (1 - 24 * zm[sflag] / mo_len[sflag]) \
+            / (1 - 16 * zm[sflag] / mo_len[sflag])
+    sflag = mo_len >= 0
+    n[sflag] = 1 / (1 + 5 * zm[sflag] / mo_len[sflag])
+    return n
