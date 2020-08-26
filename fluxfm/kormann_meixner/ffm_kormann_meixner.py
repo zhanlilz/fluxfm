@@ -45,7 +45,9 @@ def estimateZ0(zm, ws, wd, ustar, mo_len, wd_win=45):
 
     wd_win : float
         Window size of wind directions to smooth estimates of roughness length
-        per each 1-degree wind direction.
+        per each 1-degree wind direction. Therefore, the minimum window size
+        allowed is 1 degree. No smoothing if a window size less than 1 degree
+        is given.
 
     Returns
     -------
@@ -82,6 +84,9 @@ def estimateZ0(zm, ws, wd, ustar, mo_len, wd_win=45):
     # (Kormann and Meixner, 2001) is smoothed using median in a 45-deg window
     # of wind directions at 1-degree step. This is where the size of input
     # observations matter.
+    if wd_win < 1:
+        return z0
+    
     halfbinwidth = wd_win * 0.5
     z0med = np.zeros_like(z0) + np.nan;
     for kk in range(0, 360):
