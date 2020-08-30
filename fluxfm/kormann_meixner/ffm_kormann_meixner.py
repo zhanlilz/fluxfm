@@ -287,8 +287,10 @@ def estimateFootprint(zm, z0, ws, ustar, mo_len, sigma_v, \
     # measurement/receptor, by combining the Eq. (9) and (21) in (Kormann and
     # Meixner, 2001). 
     sflag = x > 0 # Only upwind contributes to flux measurements.
-    grid_ffm[sflag] = grid_res**2 * (num * A * x[sflag]**(mr - 2 - mu)) \
-            / (np.exp(Xi / x[sflag] + 0.5 * (gmm * y[sflag] * A * x[sflag]**(mr-1))**2))
+    grid_ffm[sflag] = grid_res**2 \
+            * num * A * x[sflag]**(mr - 2 - mu) \
+            / np.exp(Xi / x[sflag] \
+                     + 0.5 * (gmm * y[sflag] * A * x[sflag]**(mr-1))**2)
 
     return grid_x, grid_y, grid_ffm
 
