@@ -138,8 +138,9 @@ def estimateFootprint(zm, z0, ws, ustar, mo_len, sigma_v, \
         estimated. The domain is defined by a bounding box [xmin, xmax, ymin,
         ymax] in meters, in a coordinate system with the measurement/receptor
         at the location given by the parameter `mxy` within the `grid_domain`.
-        The X and Y directions of this coordinate system are set up in one the
-        following two ways.
+        The `[xmin, ymax]` will be the upper left corner of the upper left cell
+        in the output grid.  The X and Y directions of this coordinate system
+        are set up in one the following two ways.
         
         If wind direction is given by the optional parameter `wd`, the grid will
         be set up to align with the X-Y axes where wind direction is measured
@@ -252,8 +253,8 @@ def estimateFootprint(zm, z0, ws, ustar, mo_len, sigma_v, \
 
     # set up the output grid
     xmin, xmax, ymin, ymax = tuple(grid_domain)
-    grid_x, grid_y = np.meshgrid(np.arange(xmin, xmax+grid_res, grid_res), \
-            np.arange(ymax, ymin-grid_res, -grid_res))
+    grid_x, grid_y = np.meshgrid(np.arange(xmin+0.5*grid_res, xmax, grid_res), \
+            np.arange(ymax-0.5*grid_res, ymin, -grid_res))
     grid_ffm = np.zeros_like(grid_x)
 
     if wd is None:
