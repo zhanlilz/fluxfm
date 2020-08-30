@@ -8,6 +8,8 @@
 import numpy as np
 from scipy import special as spsp
 
+import numba
+
 von_karman = 0.4
 
 def estimateZ0(zm, ws, wd, ustar, mo_len, wd_win=45):
