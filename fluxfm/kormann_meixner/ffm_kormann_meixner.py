@@ -208,15 +208,15 @@ def estimateFootprint(zm, z0, ws, ustar, mo_len, sigma_v, \
     k = von_karman
 
     # phi_m, Eq. (33) in (Kormann and Meixner, 2001), stability function
-    phi_m = _phiM(zm, mo_len)
+    phi_m = _phiM(np.asarray([zm]), np.asarray([mo_len]))[0]
     # phi_c, Eq. (34) in (Kormann and Meixner, 2001), stability function
-    phi_c = _phiC(zm, mo_len)
+    phi_c = _phiC(np.asarray([zm]), np.asarray([mo_len]))[0]
     # psi_m, Eq. (35) in (Kormann and Meixner, 2001), diabatic integration of
     # the wind profile.
-    psi_m = _psiM(zm, mo_len)
+    psi_m = _psiM(np.asarray([zm]), np.asarray([mo_len]))[0]
 
-    m = _mParam(zm, ws, ustar, mo_len)
-    n = _nParam(zm, mo_len)
+    m = _mParam(np.asarray([zm]), np.asarray([ws]), np.asarray([ustar]), np.asarray([mo_len]))[0]
+    n = _nParam(np.asarray([zm]), np.asarray([mo_len]))[0]
 
     # kappa, from solving Eq. (11) & (32) in (Kormann and Meixner, 2001),
     # constant of eddy diffusivity in K(z)=kappa*z^n under the power-law wind
