@@ -1,0 +1,3 @@
+"""
+Commandline interface of fluxfm
+"""
