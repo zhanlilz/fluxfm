@@ -17,8 +17,7 @@ import pyproj
 from osgeo import gdal, gdal_array
 gdal.AllRegister()
 
-sys.path.append("/home/zhanli/Workspace/src/fluxfm/fluxfm/kormann_meixner")
-from ffm_kormann_meixner import estimateFootprint
+from fluxfm.ffm_kormann_meixner import estimateFootprint
 
 def getCmdArgs():
     p = argparse.ArgumentParser(description='Simply command-line interface to the function of estimating footprints by the model of Kormann & Meixner 2001.')
