@@ -6,8 +6,7 @@ import argparse
 import numpy as np
 import pandas as pd
 
-sys.path.append("/home/zhanli/Workspace/src/fluxfm/fluxfm/kormann_meixner")
-from ffm_kormann_meixner import estimateZ0
+from fluxfm.ffm_kormann_meixner import estimateZ0
 
 def getCmdArgs():
     p = argparse.ArgumentParser(description='Simple script to read a CSV file of required variables and estimate roughness length using equations from Kormann & Meixner 2001.')
