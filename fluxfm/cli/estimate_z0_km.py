@@ -79,7 +79,7 @@ def getSampleIni():
     ; sure rows in the input CSV cover entire temporal window centered at all 
     ; the target dates.
     target_dates = 2018-01-01
-                  2018-01-02
+                   2018-01-02
 
     [output_files]
     ; Output CSV of estimated z0
