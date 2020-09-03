@@ -131,9 +131,10 @@ def main(cmdargs):
     target_dates = [pd.Timestamp(td) for td in target_dates]
     tdelta = pd.Timedelta(1, unit='D') - pd.Timedelta(1, unit='ms')
     with open(out_csv, 'w') as fobj:
+        fobj.write('{0:s}\n'.format(','.join([df.index.name,'z0'])))
         for td in target_dates:
             if (len(df.loc[td:td+tdelta, :])==0):
-                warnings.warn('Target date {0:s} is not within the range of dates in the input CSV file'.format(target_date))
+                warnings.warn('Target date {0:s} is not within the range of dates in the input CSV file'.format(td.strftime('%Y-%m-%d')))
                 continue
             beg_dt = pd.Timestamp(td) - pd.Timedelta(half_time_win, unit='D')
             end_dt = pd.Timestamp(td) + pd.Timedelta(half_time_win+1, unit='D') - pd.Timedelta(1, unit='ms')
@@ -155,7 +156,8 @@ def main(cmdargs):
                     mo_len[sflag], half_wd_win=half_wd_win)
             
             out_df = pd.DataFrame(z0[:, np.newaxis], index=cur_df.index, columns=['z0'])
-            out_df.loc[td:td+tdelta, :].to_csv(fobj, mode='a', na_rep="NaN", date_format="%Y-%m-%d %H:%M")
+            out_df.loc[td:td+tdelta, :].to_csv(fobj, mode='a', header=False, \
+                    na_rep="NaN", date_format="%Y-%m-%d %H:%M")
 
 if __name__ == "__main__":
     cmdargs = getCmdArgs()
