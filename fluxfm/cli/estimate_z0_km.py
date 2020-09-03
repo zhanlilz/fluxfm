@@ -144,7 +144,8 @@ def main(cmdargs):
         sflag = np.logical_and(sflag, np.logical_not(np.isnan(var)))
 
     z0 = np.zeros_like(zm) + np.nan
-    z0[sflag] = estimateZ0(zm[sflag], ws[sflag], wd[sflag], ustar[sflag], mo_len[sflag], wd_win=2*half_wd_win+1)
+    z0[sflag] = estimateZ0(zm[sflag], ws[sflag], wd[sflag], ustar[sflag], \
+            mo_len[sflag], half_wd_win=half_wd_win)
 
     df['z0'] = z0
     with open(out_csv, 'w') as fobj:

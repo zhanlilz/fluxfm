@@ -10,7 +10,7 @@ from scipy import special as spsp
 
 von_karman = 0.4
 
-def estimateZ0(zm, ws, wd, ustar, mo_len, wd_win=45):
+def estimateZ0(zm, ws, wd, ustar, mo_len, half_wd_win=22):
     """Estimate roughness lengths based on Kormann-Meixner footprint model. 
 
     Estimate roughness length (z0) by relating power-law wind profile in
@@ -43,11 +43,11 @@ def estimateZ0(zm, ws, wd, ustar, mo_len, wd_win=45):
     mo_len : ndarray of shape (n_obs,)
         List of Monin-Obukhov length (meter) per observation at one time step. 
 
-    wd_win : float
-        Window size of wind directions to smooth estimates of roughness length
-        per each 1-degree wind direction. Therefore, the minimum window size
-        allowed is 1 degree. No smoothing if a window size less than 1 degree
-        is given.
+    half_wd_win : float
+        Half window size of wind directions to smooth estimates of roughness
+        length per each 1-degree wind direction. Therefore, the minimum half
+        window size allowed is 1 degree. No smoothing if a half window size
+        less than 1 degree is given.
 
     Returns
     -------
@@ -84,10 +84,9 @@ def estimateZ0(zm, ws, wd, ustar, mo_len, wd_win=45):
     # (Kormann and Meixner, 2001) is smoothed using median in a 45-deg window
     # of wind directions at 1-degree step. This is where the size of input
     # observations matter.
-    if wd_win < 1:
+    if half_wd_win < 1:
         return z0
     
-    halfbinwidth = wd_win * 0.5
     z0med = np.zeros_like(z0) + np.nan;
     for kk in range(0, 360):
         wd_wrapped = wd.copy();
@@ -96,7 +95,7 @@ def estimateZ0(zm, ws, wd, ustar, mo_len, wd_win=45):
         elif kk>270:
             wd_wrapped[wd<90] = wd[wd<90] + 360
         idx1 = np.logical_and(wd >= kk, wd < (kk+1))        
-        idx2 = np.logical_and(wd_wrapped >= (kk-halfbinwidth), wd_wrapped < (kk+1+halfbinwidth))
+        idx2 = np.logical_and(wd_wrapped >= (kk-half_wd_win), wd_wrapped < (kk+1+half_wd_win))
         z0med[idx1] = np.nanmedian(z0[idx2])
     return z0med
 
