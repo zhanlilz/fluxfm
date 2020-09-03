@@ -128,29 +128,34 @@ def main(cmdargs):
     df = pd.read_csv(in_csv, index_col=cols['ts'], usecols=cols.values())
     df.index = pd.DatetimeIndex(df.index)
 
-    for td in target_dates:
-        if (len(df.loc[td:td, :])==0):
-            warnings.warn('Target date {0:s} is not within the range of dates in the input CSV file'.format(target_date))
-
-    zm = df[cols['zm']].values
-    ws = df[cols['ws']].values
-    wd = df[cols['wd']].values
-    ustar = df[cols['ustar']].values
-    mo_len = df[cols['mo_len']].values
-    qc = df[cols['qc']].values
-
-    sflag = qc <= qc_max
-    for var in [zm, ws, wd, ustar, mo_len]:
-        sflag = np.logical_and(sflag, np.logical_not(np.isnan(var)))
-
-    z0 = np.zeros_like(zm) + np.nan
-    z0[sflag] = estimateZ0(zm[sflag], ws[sflag], wd[sflag], ustar[sflag], \
-            mo_len[sflag], half_wd_win=half_wd_win)
-
-    df['z0'] = z0
+    target_dates = [pd.Timestamp(td) for td in target_dates]
+    tdelta = pd.Timedelta(1, unit='D') - pd.Timedelta(1, unit='ms')
     with open(out_csv, 'w') as fobj:
         for td in target_dates:
-            df.loc[td:td, 'z0'].to_csv(fobj, mode='a', na_rep="NaN", date_format="%Y-%m-%d %H:%M")
+            if (len(df.loc[td:td+tdelta, :])==0):
+                warnings.warn('Target date {0:s} is not within the range of dates in the input CSV file'.format(target_date))
+                continue
+            beg_dt = pd.Timestamp(td) - pd.Timedelta(half_time_win, unit='D')
+            end_dt = pd.Timestamp(td) + pd.Timedelta(half_time_win+1, unit='D') - pd.Timedelta(1, unit='ms')
+            cur_df = df.loc[beg_dt:end_dt, :]
+            
+            zm = cur_df[cols['zm']].values
+            ws = cur_df[cols['ws']].values
+            wd = cur_df[cols['wd']].values
+            ustar = cur_df[cols['ustar']].values
+            mo_len = cur_df[cols['mo_len']].values
+            qc = cur_df[cols['qc']].values
+
+            sflag = qc <= qc_max
+            for var in [zm, ws, wd, ustar, mo_len]:
+                sflag = np.logical_and(sflag, np.logical_not(np.isnan(var)))
+
+            z0 = np.zeros_like(zm) + np.nan
+            z0[sflag] = estimateZ0(zm[sflag], ws[sflag], wd[sflag], ustar[sflag], \
+                    mo_len[sflag], half_wd_win=half_wd_win)
+            
+            out_df = pd.DataFrame(z0[:, np.newaxis], index=cur_df.index, columns=['z0'])
+            out_df.loc[td:td+tdelta, :].to_csv(fobj, mode='a', na_rep="NaN", date_format="%Y-%m-%d %H:%M")
 
 if __name__ == "__main__":
     cmdargs = getCmdArgs()
