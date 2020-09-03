@@ -7,8 +7,10 @@
 # Created: Sat Aug 29 15:50:34 CEST 2020
 
 import sys
+import os
 import argparse
 import configparser
+import textwrap
 
 import numpy as np
 import pandas as pd
@@ -22,13 +24,106 @@ from fluxfm.ffm_kormann_meixner import estimateFootprint
 def getCmdArgs():
     p = argparse.ArgumentParser(description='Simply command-line interface to the function of estimating footprints by the model of Kormann & Meixner 2001.')
 
+    p.add_argument('-E', '--example_ini', dest='example_ini', action='store_true', help='Write an example INI file using the name given by PROCESS_CONTROL_FILE.')
     p.add_argument(dest='in_pcf', metavar='PROCESS_CONTROL_FILE', help='Process-Control File (PCF) in INI format that provides parameter values for estimating footprints and writing output images.')
 
     cmdargs = p.parse_args()
     return cmdargs
 
+def getSampleIni():
+    """Write a sample INI file
+    
+    Parameters
+    ----------
+
+    Returns
+    -------
+    
+    """
+    ini = """
+    [meta_variables]
+    footprint_model = kormann and meixner
+    footprint_label = 202001011645 
+
+    [input_variables]
+    ; Height of receptor/measurement, meter
+    receptor_height = 1.8773 
+
+    ; Roughness length, meter
+    roughness_length = 0.006 
+
+    ; Mean wind speed, m*s^-1
+    alongwind_speed = 3.4
+    
+    ; Friction velocity, m*s^-1
+    friction_velocity = 0.23
+    
+    ; Monin-Obukhov length, meter
+    obukhov_length = 35.79
+    
+    ; Standard deviation of cross-wind speed, m*s^-1
+    crosswind_speed_sd = 0.618
+
+    ; Spatial reference system of the output grid in GDAL-supported format.
+    ; Leave it empty for non-georeferenced simple coordinate system. 
+    grid_spatial_reference = epsg:32633
+    
+    ; Domain of the output grid on which the footprint to be estimated, 
+    ; given in (xmin, xmax, ymin, ymax) in four lines, meter
+    grid_domain = 360805.0
+                  361645.0
+                  5971365.0
+                  5972205.0
+    
+    ; Resolution of the footprint grid for processing and output, meter.
+    grid_resolution = 0.1 
+    
+    ; Location (x, y) of receptor/measurement in the coordinate system of the
+    ; grid.
+    receptor_location = 361224.023952403
+                        5971784.23062857 
+
+    [optional_variables]
+    ; Mean wind direction with regard to the north designated by
+    ; "north_for_wind_direction", degree.  Leave it empty for default value 0
+    ; degree, that is, the given north aligns with mean wind direction.
+    wind_direction = 172.29
+    
+    ; Type of "North" that defines the wind direction, "due" (true north) or
+    ; "grid" (grid columns along north-south direction)
+    north_for_wind_direction = due
+
+    [output_files]
+    ; Output GeoTiff image file of footprint
+    footprint_grid_file = /this/is/the/path/to/my/raster/file/of/footprint/grid
+    footprint_grid_format = GTiff
+
+    [user_runtime_parameters]
+    ; For name of data types to use, see
+    ; https://gdal.org/user/raster_data_model.html#raster-band
+    data_type = Float32
+    scale_factor = 1
+    add_offset = 0
+    """
+    return textwrap.dedent(ini)
+
 def main(cmdargs):
     in_pcf = cmdargs.in_pcf
+    out_example = cmdargs.example_ini
+    if out_example:
+        if os.path.isfile(in_pcf):
+            msg_str = '''
+            {0:s} exists! To use -E/--example_ini option to write an example
+            INI to this file, delete it first! if you still need this file, did
+            you type the option or file name wrong? 
+            '''.format(in_pcf)
+            msg_str = textwrap.dedent(msg_str)
+            raise RuntimeError(msg_str)
+        else:
+            with open(in_pcf, 'w') as fobj:
+                fobj.write(getSampleIni())
+            return 0
+
     pcf = configparser.ConfigParser(allow_no_value=True)
     pcf.read(in_pcf)
 
