@@ -382,4 +382,265 @@ class SurfaceAerodynamicFPIT():
         return z, z0
 
 class SurfaceAerodynamicFVIT():
-    pass
+    """Flux-Variance-based Iterative estimator of surface aerodynamic
+    parameters. 
+
+    This estimator takes single-level micrometeorological measurements to
+    simultaneously estimate two surface aerodynamic parameters including
+    effective/aerodynamic measurement height z and aerodynamic roughness length
+    z0 using the iterative method based on flux-variance similarity theory
+    [1]_, [2]_. 
+
+    Parameters
+    ----------
+    solver : str {'sigma-w', 'sigma-t', 'sigma-w-reg'}
+        If 'sigma-w':
+          Estimate z (effective/aerodynamic height) using the Eq. (12) in [1]_
+          to solve the minimization of the objective function concerning
+          vertical wind velocity (w). Then use Eq. (6) in [1]_ to estimate z0
+          (aerodynamic roughness lenght) based on log wind profile and
+          Monin-Obukhov similarity theory.
+        If 'sigma-t':
+          Estimate z (effective/aerodynamic height) using the Eq. (13) in [1]_
+          to solve the minimization of the objective function concerning
+          virtual/sonic temperature (w). Then use Eq. (6) in [1]_ to estimate
+          z0 (aerodynamic roughness lenght) based on log wind profile and
+          Monin-Obukhov similarity theory.
+        If 'sigma-w-reg':
+          Estimate z (effective/aerodynamic height) using the Eq. (12) in [1]_
+          to solve the minimization of the objective function concerning
+          vertical wind velocity (w). Then use Eq. (14) in [1]_ in a linear
+          regression to estimate z0 (aerodynamic roughness lenght).
+
+    min_nobs : float
+        Minimum number of observations that meet the applicability criteria
+        given by Table 1 in [1]_ to carry out the estimates.
+
+    Attributes
+    ----------
+    N_ : integer
+        Number of valid observations that meet the applicability criteria given
+        by Table 1 in [1]_.
+
+    Nin_ : integer
+        Number of input observations after excluding NaN and Inf.
+
+    References
+    ----------
+    .. [1] Graf, A., van de Boer, A., Moene, A., Vereecken, H., 2014.
+    Intercomparison of Methods for the Simultaneous Estimation of Zero-Plane
+    Displacement and Aerodynamic Roughness Length from Single-Level
+    Eddy-Covariance Data.  Boundary-Layer Meteorol 151, 373–387.
+    https://doi.org/10.1007/s10546-013-9905-z
+
+    .. [2] Panofsky, H.A., 1984. Vertical variation of roughness length at the
+    Boulder Atmospheric Observatory. Boundary-Layer Meteorol 28, 305–308.
+    https://doi.org/10.1007/BF00121309
+    """
+    def __init__(
+            self, 
+            solver='sigma-w', 
+            min_nobs=10):
+        self.solver = solver
+        self.min_nobs = min_nobs
+        # estimates for the universal constants, as used for this method by
+        # Toda & Sugita 2003 and Panofsky & Dutton 1984.
+        self._C1 = 1.3
+        self._C2 = 2.0
+        self._C3 = 0.99
+        self._C4 = 0.06; 
+
+    def _filter(self, data, z0max, zmax, reg=False):
+        """Filter data according to the applicabilit criteria in Table 1 in
+        [1]_.
+
+        Parameters
+        ----------
+        data : ndarray of shape (n_obs, 6)
+            Input ``n_obs`` observations of 3 variables from micrometeorology
+            measurements in 3 columns of ``data``: alongwind speed, friction
+            velocity, Monin-Obukohv length, standard deviation of vertical
+            wind, standard deviation of sonic temperature, and friction
+            temperature, in that order. 
+
+        z0max : float
+            Upper bound to the expected z0 values (aerodynamic surface
+            roughness length, e.g. 10% of canopy height for vegetated surface),
+            in meters.
+
+        zmax : float
+            Upper bound to the expected z values (effective/aerodynamic
+            measurement height, in meters.
+
+        reg : boolean
+            Whether data filtering is to use the linear regression of Eq. (14)
+            in [1]_ to esitmate z0. If so, more criteria are applied to filter
+            input data. 
+
+        Returns
+        -------
+        sdata : ndarray of shape (N_, 3)
+            Selected ``N_`` observations of 3 variables after filtering. 
+
+        References
+        ----------
+        .. [1] Graf, A., van de Boer, A., Moene, A., Vereecken, H., 2014.
+        Intercomparison of Methods for the Simultaneous Estimation of
+        Zero-Plane Displacement and Aerodynamic Roughness Length from
+        Single-Level Eddy-Covariance Data.  Boundary-Layer Meteorol 151,
+        373–387.  https://doi.org/10.1007/s10546-013-9905-z
+        """
+        data = data.copy()
+
+        self.z0max_ = z0max
+        self.zmax_ = zmax
+
+        sflag = np.logical_or(np.isnan(data), np.isinf(data))
+        sflag = np.logical_not(sflag)
+        sflag = np.all(sflag, axis=1)
+        data = data[sflag, :]
+        self.Nin_ = data.shape[0]
+
+        if reg:
+            sflag_arr = [
+                    1 / data[:, 2] < -0.4, 
+                    1 / data[:, 2] >  0.4, 
+                    data[:, 0] < 1.5, 
+                    ]
+        else:
+            sflag_arr = [
+                    # remove positive L and negative near-zero L, we need
+                    # moderately unstable condition.
+                    zmax / data[:, 2] > 0, 
+                    zmax / data[:, 2] < -99999, 
+                    # exclude near-zero denominator in the left-hand side of Eq.
+                    # (12) and (13) in Graf et al., 2014. 
+                    data[:, 1] <  0.05, 
+                    np.abs(data[:, 5]) < 0.3, 
+                    ]
+
+        sflag = np.logical_not(np.any(np.vstack(sflag_arr).T, axis=1))
+        data = data[sflag, :]
+        self.N_ = data.shape[0]
+        return data
+
+    def _eval_objective_func(self, data, zv):
+        C1, C2, C3, C4 = self._C1, self._C2, self._C3, self._C4
+
+        zv_mat, lm_mat = np.meshgrid(zv, data[:, 2])
+        _, stdw_mat = np.meshgrid(zv, data[:, 3])
+        _, ustar_mat = np.meshgrid(zv, data[:, 1])
+        _, stdt_mat = np.meshgrid(zv, data[:, 4])
+        _, tstar_mat = np.meshgrid(zv, data[:, 5])
+
+        _, u_mat = np.meshgrid(zv, data[:, 0])
+        z0v = _monin_obukhov_z0(zv_mat, u_mat, ustar_mat, lm_mat)
+        z0_values = np.nanmean(z0v, axis=0)
+
+        if self.solver == 'sigma-w' or self.solver == 'sigma-w-reg':
+            lhs = stdw_mat / ustar_mat
+            rhs = C1 * (1 - C2 * zv_mat / -np.abs(lm_mat))**(1./3)
+            objective_values = np.nanmean((rhs - lhs)**2, axis=0)
+        elif self.solver == 'sigma-t':
+            lhs = stdt_mat / np.abs(tstar_mat)
+            rhs = C3 * (C4 - zv_mat / -np.abs(lm_mat))**(-1./3)
+            objective_values = np.nanmean(((rhs - lhs) / rhs)**2, axis=0)
+        else:
+            raise ValueError(
+                    'Unrecognized solver={0:s}'.format(self.solver))
+        
+        return objective_values, z0_values
+
+    def _calc_xy(self, data):
+        """Calculate response variable y and explanatory variable X for the
+        linear regression approach given by Eq. (14) in [1]_ to estimate z0
+        (aerodynamic roughness length). Only valid if the ``solver`` ==
+        'sigma-w-reg'.
+
+        Returns
+        -------
+        X : ndarray of shape (N_, 1)
+            Refer to Eq. (14) in [1]_.
+
+        y : ndarray of shape (N_, 1)
+            Refer to Eq. (14) in [1]_.
+
+        References
+        ----------
+        .. [1] Graf, A., van de Boer, A., Moene, A., Vereecken, H., 2014.
+        Intercomparison of Methods for the Simultaneous Estimation of
+        Zero-Plane Displacement and Aerodynamic Roughness Length from
+        Single-Level Eddy-Covariance Data.  Boundary-Layer Meteorol 151,
+        373–387.  https://doi.org/10.1007/s10546-013-9905-z
+        """
+        if self.solver == 'sigma-w-reg':
+            X = data[:, 0][:, np.newaxis]
+            y = data[:, 3][:, np.newaxis]
+        else:
+            raise ValueError('Invalid for solver={0:s}'.format(self.solver))
+        return X, y
+
+    def fit_transform(self, data, z0max, zmax, zv):
+        """Build the estimator from single-level micrometeorolgoical data and
+        apply it to estimate surface aerodynamic parameters.
+
+        Parameters
+        ----------
+        data : ndarray of shape (n_obs, 6)
+            Input ``n_obs`` observations of 3 variables from micrometeorology
+            measurements in 3 columns of ``data``: alongwind speed, friction
+            velocity, Monin-Obukohv length, standard deviation of vertical
+            wind, standard deviation of sonic temperature, and friction
+            temperature, in that order. 
+
+        z0max : float
+            Upper bound to the expected z0 values (aerodynamic surface
+            roughness length, e.g. 10% of canopy height for vegetated surface),
+            in meters.
+
+        zmax : float
+            Upper bound to the expected z values (effective/aerodynamic
+            measurement height, in meters.
+
+        zv : ndarray of shape (n_possible, )
+            List of ``n_possible`` possible z values in meters for numerical
+            search of optimal z and z0.
+       
+        Returns
+        -------
+        z : float 
+            Estimated z (effective/aerodynamic measurement height). 
+
+        z0 : float 
+            Estimated z0 (surface aerodynamic roughness length). 
+        """
+        sdata = self._filter(data, z0max, zmax)
+        if self.N_ < self.min_nobs: 
+            warnings.warn(
+                    'too few data points left after validation.'
+                    ' return nan')
+            z, z0 = np.nan, np.nan
+        else:
+            objective_values, z0_values = self._eval_objective_func(sdata, zv)
+            ix = np.nanargmin(objective_values)
+    
+            if ix == 0 or ix == len(zv)-1:
+                z, z0 = np.nan, np.nan
+            else:
+                z, z0 = zv[ix], z0_values[ix]
+
+        if self.solver == 'sigma-w-reg':
+            sdata = self._filter(data, z0max, zmax, reg=True)
+            if self.N_ < 1:
+                warnings.warn(
+                        'No observations meet applicability criteria'
+                        ' for {0:s}'.format(self.solver))
+                z0 = np.nan
+            else:
+                C1 = self._C1
+                X, y = self._calc_xy(sdata)
+                reg = LinearRegression(fit_intercept=False).fit(X, y)
+                slope = reg.coef_[0, 0]
+                z0 = z / np.exp(VON_KARMAN * C1 / slope)
+
+        return z, z0
