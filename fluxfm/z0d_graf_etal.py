@@ -48,11 +48,11 @@ class SurfaceAerodynamicFPRE():
 
     Attributes
     ----------
-    N : integer
+    N_ : integer
         Number of valid observations that meet the applicability criteria given
         by Table 1 in [1]_.
 
-    Nin : integer
+    Nin_ : integer
         Number of input observations after excluding NaN and Inf.
 
     References
@@ -238,11 +238,11 @@ class SurfaceAerodynamicFPIT():
 
     Attributes
     ----------
-    N : integer
+    N_ : integer
         Number of valid observations that meet the applicability criteria given
         by Table 1 in [1]_.
 
-    Nin : integer
+    Nin_ : integer
         Number of input observations after excluding NaN and Inf.
 
     References
