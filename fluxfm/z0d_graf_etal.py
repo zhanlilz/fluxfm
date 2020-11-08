@@ -119,6 +119,29 @@ class SurfaceAerodynamicFPRE():
         return data
     
     def _calc_xy(self, data):
+        """Calculate response variable y and explanatory variable X for the
+        linear regression approach. 
+
+        Returns
+        -------
+        X : ndarray of shape (N_, 1 or 2)
+            If the solver is 'univariate', X has the shape of (N_, 1). Refer to
+            Eq.  (10) in [1]_. If the solver is 'bivariate', X has the shape
+            (N_, 2). Refer to Eq. (11) in [1]_, with the 1st column of X being
+            :math:`u_*/\kappa`, and the 2nd column of X being :math:`(u_*
+            \\beta)/(\kappa L)`
+
+        y : ndarray of shape (N_, 1)
+            Refer to Eq. (10) or (11) in [1]_.
+
+        References
+        ----------
+        .. [1] Graf, A., van de Boer, A., Moene, A., Vereecken, H., 2014.
+        Intercomparison of Methods for the Simultaneous Estimation of
+        Zero-Plane Displacement and Aerodynamic Roughness Length from
+        Single-Level Eddy-Covariance Data.  Boundary-Layer Meteorol 151,
+        373–387.  https://doi.org/10.1007/s10546-013-9905-z
+        """
         if self.solver == 'univariate':
             X = PHI_M_CONST_S / data[:, 2] 
             y = data[:, 0] * VON_KARMAN / data[:, 1] 
