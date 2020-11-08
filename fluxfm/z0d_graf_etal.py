@@ -539,11 +539,11 @@ class SurfaceAerodynamicFVIT():
 
         if self.solver == 'sigma-w' or self.solver == 'sigma-w-reg':
             lhs = stdw_mat / ustar_mat
-            rhs = C1 * (1 - C2 * zv_mat / -np.abs(lm_mat))**(1./3)
+            rhs = C1 * (1 - C2 * zv_mat / (lm_mat))**(1./3)
             objective_values = np.nanmean((rhs - lhs)**2, axis=0)
         elif self.solver == 'sigma-t':
             lhs = stdt_mat / np.abs(tstar_mat)
-            rhs = C3 * (C4 - zv_mat / -np.abs(lm_mat))**(-1./3)
+            rhs = C3 * (C4 - zv_mat / (lm_mat))**(-1./3)
             objective_values = np.nanmean(((rhs - lhs) / rhs)**2, axis=0)
         else:
             raise ValueError(
