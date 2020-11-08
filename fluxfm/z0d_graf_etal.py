@@ -313,6 +313,25 @@ class SurfaceAerodynamicFPIT():
         self.N_ = data.shape[0]
         return data
 
+    def _eval_objective_func(self, data, zv):
+        zv_mat, lm_mat = np.meshgrid(zv, data[:, 2])
+        _, u_mat = np.meshgrid(zv, data[:, 0])
+        _, ustar_mat = np.meshgrid(zv, data[:, 1])
+        z0v = _monin_obukhov_z0(zv_mat, u_mat, ustar_mat, lm_mat)
+
+        z0_values = np.nanmean(z0v, axis=0)
+
+        if self.solver == 'sigma-s':
+            psim = _psi_m(zv_mat, lm_mat)
+            sv = VON_KARMAN * u_mat / ustar_mat - psim
+            objective_values = np.nanstd(sv, axis=0)
+        elif self.solver == 'sigma-s-approx':
+            objective_values = np.nanstd(z0v, axis=0)/ z0_values
+        else:
+            raise ValueError(
+                    'Unrecognized solver={0:s}'.format(self.solver))
+        return objective_values, z0_values
+
     def fit_transform(self, data, z0max, zmax, zv):
         """Build the estimator from single-level micrometeorolgoical data and
         apply it to estimate surface aerodynamic parameters.
@@ -352,29 +371,13 @@ class SurfaceAerodynamicFPIT():
                     ' return nan')
             z, z0 = np.nan, np.nan
         else:
-            zv_mat, lm_mat = np.meshgrid(zv, data[:, 2])
-            _, u_mat = np.meshgrid(zv, data[:, 0])
-            _, ustar_mat = np.meshgrid(zv, data[:, 1])
-            z0v = _monin_obukhov_z0(zv_mat, u_mat, ustar_mat, lm_mat)
-
-            z0avg = np.nanmean(z0v, axis=0)
-
-            if self.solver == 'sigma-s':
-                psim = _psi_m(zv_mat, lm_mat)
-                sv = VON_KARMAN * u_mat / ustar_mat - psim
-                svstd = np.nanstd(sv, axis=0)
-                ix = np.nanargmin(svstd)
-            elif self.solver == 'sigma-s-approx':
-                z0cv = np.nanstd(z0v, axis=0)/ z0avg
-                ix = np.nanargmin(z0cv)
-            else:
-                raise ValueError(
-                        'Unrecognized solver={0:s}'.format(self.solver))
-                
+            objective_values, z0_values = self._eval_objective_func(data, zv)
+            ix = np.nanargmin(objective_values)
+    
             if ix == 0 or ix == len(zv)-1:
                 z, z0 = np.nan, np.nan
             else:
-                z, z0 = zv[ix], z0avg[ix]
+                z, z0 = zv[ix], z0_values[ix]
 
         return z, z0
 
