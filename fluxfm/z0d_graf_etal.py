@@ -190,7 +190,7 @@ class SurfaceAerodynamicFPRE():
                     'too few data points left after validation.'
                     ' return nan')
             z, z0 = np.nan, np.nan
-            self.coef_, self.intercept_ = None, None
+            self.reg_ = None
         else:
             X, y = self._calc_xy(data)
             if self.solver == 'univariate':
@@ -208,8 +208,7 @@ class SurfaceAerodynamicFPRE():
             else:
                 raise ValueError(
                         'Unrecognized solver={0:s}'.format(self.solver))
-            self.coef_ = reg.coef_
-            self.intercept_ = reg.intercept_
+            self.reg_ = reg
         return z, z0
 
 class SurfaceAerodynamicFPIT():
