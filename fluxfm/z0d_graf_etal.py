@@ -46,6 +46,12 @@ class SurfaceAerodynamicFPRE():
         Minimum number of observations that meet the applicability criteria
         given by Table 1 in [1]_ to carry out the estimates.
 
+    selector : None or callable
+        A function to select input data for the estimation. If None, use
+        default function that select data according to the Table 1 in [1]_. If
+        a user-defined callable, it should be in the following form,
+        ``user_function(data, z0max, zmax)``.
+
     Attributes
     ----------
     N_ : integer
@@ -67,10 +73,70 @@ class SurfaceAerodynamicFPRE():
     def __init__(
             self, 
             solver='univariate', 
-            min_nobs=10):
+            min_nobs=10, 
+            selector=None):
         self.solver = solver
         self.min_nobs = min_nobs
+        self.selector=selector
 
+    def _cleaner(self, data):
+        """Clean out NaN and Inf from data.
+
+        Parameters
+        ----------
+        data : ndarray of shape (n_obs, 3)
+            Input ``n_obs`` observations of 3 variables from micrometeorology
+            measurements in 3 columns of ``data``: alongwind speed, friction
+            velocity, and Monin-Obukohv length, in that order. 
+ 
+        Returns
+        -------
+        sdata : ndarray of shape (n_clean, 3)
+            Selected ``n_clean`` observations of 3 variables after cleaning. 
+        """
+        data = data.copy()
+
+        sflag = np.logical_or(np.isnan(data), np.isinf(data))
+        sflag = np.logical_not(sflag)
+        sflag = np.all(sflag, axis=1)
+        data = data[sflag, :]
+        return data
+
+    def _default_selector(self, data, z0max, zmax):
+        """Filter data according to the applicabilit criteria in Table 1 in
+        [1]_.
+
+        Parameters
+        ----------
+        data : ndarray of shape (n_obs, 3)
+            Input ``n_obs`` observations of 3 variables from micrometeorology
+            measurements in 3 columns of ``data``: alongwind speed, friction
+            velocity, and Monin-Obukohv length, in that order. 
+ 
+        z0max : float
+            Upper bound to the expected z0 values (aerodynamic surface
+            roughness length, e.g. 10% of canopy height for vegetated surface),
+            in meters.
+
+        zmax : float
+            Upper bound to the expected z values (effective/aerodynamic
+            measurement height, in meters.
+       
+        Returns
+        -------
+        sdata : ndarray of shape (N_, 3)
+            Selected ``N_`` observations of 3 variables after filtering. 
+        """
+        sflag_arr = [ 
+                1 / data[:, 2] < -0.103 / zmax, 
+                1 / data[:, 2] < -0.084 / z0max, 
+                1 / data[:, 2] >  0.037 / z0max, 
+                1 / data[:, 2] >      1 / zmax, 
+                ]
+        sflag = np.logical_not(np.any(np.vstack(sflag_arr).T, axis=1))
+        data = data[sflag, :]
+        return data
+ 
     def _filter(self, data, z0max, zmax):
         """Filter data according to the applicabilit criteria in Table 1 in
         [1]_.
@@ -96,28 +162,16 @@ class SurfaceAerodynamicFPRE():
         sdata : ndarray of shape (N_, 3)
             Selected ``N_`` observations of 3 variables after filtering. 
         """
-        data = data.copy()
-
-        self.z0max_ = z0max
-        self.zmax_ = zmax
-
-        sflag = np.logical_or(np.isnan(data), np.isinf(data))
-        sflag = np.logical_not(sflag)
-        sflag = np.all(sflag, axis=1)
-        data = data[sflag, :]
+        data = self._cleaner(data)
         self.Nin_ = data.shape[0]
 
-        sflag_arr = [ 
-                1 / data[:, 2] < -0.103 / zmax, 
-                1 / data[:, 2] < -0.084 / z0max, 
-                1 / data[:, 2] >  0.037 / z0max, 
-                1 / data[:, 2] >      1 / zmax, 
-                ]
-        sflag = np.logical_not(np.any(np.vstack(sflag_arr).T, axis=1))
-        data = data[sflag, :]
+        selector2use = self._default_selector
+        if self.selector is not None and callable(self.selector):
+            selector2use = self.selector
+        data = selector2use(data, z0max, zmax)
         self.N_ = data.shape[0]
         return data
-    
+   
     def _calc_xy(self, data):
         """Calculate response variable y and explanatory variable X for the
         linear regression approach. 
@@ -184,7 +238,11 @@ class SurfaceAerodynamicFPRE():
         z0 : float 
             Estimated z0 (surface aerodynamic roughness length). 
         """
+        self.z0max_ = z0max
+        self.zmax_ = zmax
+
         data = self._filter(data, z0max, zmax)
+
         if self.N_ < self.min_nobs: 
             warnings.warn(
                     'too few data points left after validation.'
