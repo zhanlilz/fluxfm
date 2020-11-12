@@ -492,6 +492,12 @@ class SurfaceAerodynamicFVIT():
         Minimum number of observations that meet the applicability criteria
         given by Table 1 in [1]_ to carry out the estimates.
 
+    selector : None or callable
+        A function to select input data for the estimation. If None, use
+        default function that select data according to the Table 1 in [1]_. If
+        a user-defined callable, it should be in the following form,
+        ``user_function(data, z0max, zmax)``.
+
     Attributes
     ----------
     N_ : integer
@@ -516,15 +522,55 @@ class SurfaceAerodynamicFVIT():
     def __init__(
             self, 
             solver='sigma-w', 
-            min_nobs=10):
+            min_nobs=10, 
+            selector=None, 
+            selector_reg=None):
         self.solver = solver
         self.min_nobs = min_nobs
+        self.selector = selector
+        self.selector_reg = selector_reg
         # estimates for the universal constants, as used for this method by
         # Toda & Sugita 2003 and Panofsky & Dutton 1984.
         self._C1 = 1.3
         self._C2 = 2.0
         self._C3 = 0.99
-        self._C4 = 0.06; 
+        self._C4 = 0.06;
+
+    def _cleaner(self, data):
+        data = data.copy()
+
+        sflag = np.logical_or(np.isnan(data), np.isinf(data))
+        sflag = np.logical_not(sflag)
+        sflag = np.all(sflag, axis=1)
+        data = data[sflag, :]
+        return data
+
+    def _default_selector(self, data, z0max, zmax):
+        sflag_arr = [
+                # remove positive L and negative near-zero L, we need
+                # moderately unstable condition.
+                zmax / data[:, 2] > 0, 
+                zmax / data[:, 2] < -99999, 
+                # exclude near-zero denominator in the left-hand side of Eq.
+                # (12) and (13) in Graf et al., 2014. 
+                data[:, 1] <  0.05, 
+                np.abs(data[:, 5]) < 0.3, 
+                ]
+
+        sflag = np.logical_not(np.any(np.vstack(sflag_arr).T, axis=1))
+        data = data[sflag, :]
+        return data
+
+    def _default_selector_reg(self, data, z0max, zmax):
+        sflag_arr = [
+                1 / data[:, 2] < -0.4, 
+                1 / data[:, 2] >  0.4, 
+                data[:, 0] < 1.5, 
+                ]
+
+        sflag = np.logical_not(np.any(np.vstack(sflag_arr).T, axis=1))
+        data = data[sflag, :]
+        return data
 
     def _filter(self, data, z0max, zmax, reg=False):
         """Filter data according to the applicabilit criteria in Table 1 in
@@ -566,39 +612,21 @@ class SurfaceAerodynamicFVIT():
         Single-Level Eddy-Covariance Data.  Boundary-Layer Meteorol 151,
         373–387.  https://doi.org/10.1007/s10546-013-9905-z
         """
-        data = data.copy()
-
-        self.z0max_ = z0max
-        self.zmax_ = zmax
-
-        sflag = np.logical_or(np.isnan(data), np.isinf(data))
-        sflag = np.logical_not(sflag)
-        sflag = np.all(sflag, axis=1)
-        data = data[sflag, :]
+        data = self._cleaner(data)
         self.Nin_ = data.shape[0]
 
         if reg:
-            sflag_arr = [
-                    1 / data[:, 2] < -0.4, 
-                    1 / data[:, 2] >  0.4, 
-                    data[:, 0] < 1.5, 
-                    ]
+            selector2use = self._default_selector_reg
+            if self.selector_reg is not None and callable(self.selector_reg):
+                selector2use = self.selector_reg
         else:
-            sflag_arr = [
-                    # remove positive L and negative near-zero L, we need
-                    # moderately unstable condition.
-                    zmax / data[:, 2] > 0, 
-                    zmax / data[:, 2] < -99999, 
-                    # exclude near-zero denominator in the left-hand side of Eq.
-                    # (12) and (13) in Graf et al., 2014. 
-                    data[:, 1] <  0.05, 
-                    np.abs(data[:, 5]) < 0.3, 
-                    ]
-
-        sflag = np.logical_not(np.any(np.vstack(sflag_arr).T, axis=1))
-        data = data[sflag, :]
+            selector2use = self._default_selector
+            if self.selector is not None and callable(self.selector):
+                selector2use = self.selector
+        
+        data = selector2use(data, z0max, zmax)
         self.N_ = data.shape[0]
-        return data
+        return data       
 
     def _eval_objective_func(self, data, zv):
         C1, C2, C3, C4 = self._C1, self._C2, self._C3, self._C4
@@ -690,6 +718,9 @@ class SurfaceAerodynamicFVIT():
         z0 : float 
             Estimated z0 (surface aerodynamic roughness length). 
         """
+        self.z0max_ = z0max
+        self.zmax_ = zmax
+
         sdata = self._filter(data, z0max, zmax)
         if self.N_ < self.min_nobs: 
             warnings.warn(
