@@ -293,6 +293,12 @@ class SurfaceAerodynamicFPIT():
         Minimum number of observations that meet the applicability criteria
         given by Table 1 in [1]_ to carry out the estimates.
 
+    selector : None or callable
+        A function to select input data for the estimation. If None, use
+        default function that select data according to the Table 1 in [1]_. If
+        a user-defined callable, it should be in the following form,
+        ``user_function(data, z0max, zmax)``.
+
     Attributes
     ----------
     N_ : integer
@@ -319,9 +325,31 @@ class SurfaceAerodynamicFPIT():
     def __init__(
             self, 
             solver='sigma-s', 
-            min_nobs=10):
+            min_nobs=10, 
+            selector=None):
         self.solver = solver
         self.min_nobs = min_nobs
+        self.selector = selector
+
+    def _cleaner(self, data):
+        data = data.copy()
+
+        sflag = np.logical_or(np.isnan(data), np.isinf(data))
+        sflag = np.logical_not(sflag)
+        sflag = np.all(sflag, axis=1)
+        data = data[sflag, :]
+        return data
+
+    def _default_selector(self, data, z0max, zmax):
+        sflag_arr = [ 
+                data[:, 0] < 1.5, 
+                1 / data[:, 2] < -0.084 / z0max, 
+                1 / data[:, 2] >  0.037 / z0max, 
+                1 / data[:, 2] >      1 / zmax, 
+                ]
+        sflag = np.logical_not(np.any(np.vstack(sflag_arr).T, axis=1))
+        data = data[sflag, :]
+        return data
 
     def _filter(self, data, z0max, zmax):
         """Filter data according to the applicabilit criteria in Table 1 in
@@ -348,27 +376,15 @@ class SurfaceAerodynamicFPIT():
         sdata : ndarray of shape (N_, 3)
             Selected ``N_`` observations of 3 variables after filtering. 
         """
-        data = data.copy()
-
-        self.z0max_ = z0max
-        self.zmax_ = zmax
-
-        sflag = np.logical_or(np.isnan(data), np.isinf(data))
-        sflag = np.logical_not(sflag)
-        sflag = np.all(sflag, axis=1)
-        data = data[sflag, :]
+        data = self._cleaner(data)
         self.Nin_ = data.shape[0]
 
-        sflag_arr = [ 
-                data[:, 0] < 1.5, 
-                1 / data[:, 2] < -0.084 / z0max, 
-                1 / data[:, 2] >  0.037 / z0max, 
-                1 / data[:, 2] >      1 / zmax, 
-                ]
-        sflag = np.logical_not(np.any(np.vstack(sflag_arr).T, axis=1))
-        data = data[sflag, :]
+        selector2use = self._default_selector
+        if self.selector is not None and callable(self.selector):
+            selector2use = self.selector
+        data = selector2use(data, z0max, zmax)
         self.N_ = data.shape[0]
-        return data
+        return data       
 
     def _eval_objective_func(self, data, zv):
         zv_mat, lm_mat = np.meshgrid(zv, data[:, 2])
@@ -421,6 +437,9 @@ class SurfaceAerodynamicFPIT():
         z0 : float 
             Estimated z0 (surface aerodynamic roughness length). 
         """
+        self.z0max_ = z0max
+        self.zmax_ = zmax
+
         data = self._filter(data, z0max, zmax)
         if self.N_ < self.min_nobs: 
             warnings.warn(
