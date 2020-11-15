@@ -580,7 +580,7 @@ class SurfaceAerodynamicFVIT():
         ----------
         data : ndarray of shape (n_obs, 6)
             Input ``n_obs`` observations of 3 variables from micrometeorology
-            measurements in 3 columns of ``data``: alongwind speed, friction
+            measurements in 6 columns of ``data``: alongwind speed, friction
             velocity, Monin-Obukohv length, standard deviation of vertical
             wind, standard deviation of sonic temperature, and friction
             temperature, in that order. 
@@ -692,7 +692,7 @@ class SurfaceAerodynamicFVIT():
         ----------
         data : ndarray of shape (n_obs, 6)
             Input ``n_obs`` observations of 3 variables from micrometeorology
-            measurements in 3 columns of ``data``: alongwind speed, friction
+            measurements in 6 columns of ``data``: alongwind speed, friction
             velocity, Monin-Obukohv length, standard deviation of vertical
             wind, standard deviation of sonic temperature, and friction
             temperature, in that order. 
