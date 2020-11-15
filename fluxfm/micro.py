@@ -203,3 +203,51 @@ def _monin_obukhov_z0(zm, ws, ustar, mo_len):
 
     return z0
 
+def _monin_obukhov_u(zm, z0, ustar, mo_len):
+    """Estimate horizontal wind speed (u) using Monin-Obukhov similarity theory
+    under the assumption of a power-law wind profile. See Eq.  (31) in [1]_,
+    Eq. (6) in [2]_, or Section 2.3.2 in [3]_ for a detailed overview.
+
+    Parameters
+    ----------
+    zm : array-like of shape (n_obs,)
+        List of effective/aerodynamic measurement height (meter) per
+        observation at one time step. 
+
+    z0 : array-like of shape (n_obs,)
+        List of roughness length (meter) per observation at one time step.
+
+    ustar : array-like of shape (n_obs,)
+        List of friction velocity (m*s^-1) per observation at one time step.
+
+    mo_len : array-like of shape (n_obs,)
+        List of Monin-Obukhov length (meter) per observation at one time step. 
+
+    Returns
+    -------
+    u : ndarray of shape (n_obs,)
+        Estimated u (horizontal wind sped).
+
+    References
+    ----------
+    .. [1] Kormann, R., Meixner, F.X., 2001. An Analytical Footprint Model For
+    Non-Neutral Stratification. Boundary-Layer Meteorology 99, 207–224.
+    https://doi.org/10.1023/A:1018991015119
+    
+    .. [2] Graf, A., van de Boer, A., Moene, A., Vereecken, H., 2014.
+    Intercomparison of Methods for the Simultaneous Estimation of Zero-Plane
+    Displacement and Aerodynamic Roughness Length from Single-Level
+    Eddy-Covariance Data. Boundary-Layer Meteorol 151, 373–387.
+    https://doi.org/10.1007/s10546-013-9905-z
+
+    .. [3] Foken, T., 2008. Micrometeorology. Springer Berlin Heidelberg,
+    Berlin, Heidelberg. https://doi.org/10.1007/978-3-540-74666-9
+
+    """
+    psi_m = _psi_m(zm, mo_len)
+    # roughness length z0, a solution for z0 to the Eq. (31) in (Kormann and
+    # Meixner, 2001)
+    u = ustar / VON_KARMAN * (np.log(zm / z0) + psi_m) 
+
+    return u
+
