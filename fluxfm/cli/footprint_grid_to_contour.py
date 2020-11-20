@@ -18,6 +18,10 @@ def getCmdArgs():
     p = argparse.ArgumentParser(description='''Convert footprint grid to
             contour lines saved in a vector file.''')
 
+    p.add_argument('-b', '--band', dest='band', metavar='BAND_INDEX', 
+            type=int, required=False, default=1, 
+            help='''Index to the band in the raster file to use for generating
+            contour lines, with first band being 1. Default: 1.''')
     p.add_argument('-p', '--percentile', dest='percentile', 
             metavar='PERCENTILE_LEVEL', 
             type=float, nargs='+', required=False, 
@@ -40,12 +44,16 @@ def getCmdArgs():
 def main(cmdargs):
     in_grid_raster = cmdargs.in_grid
     out_contour_vector = cmdargs.out_contour
+    iband = cmdargs.band
     out_format = cmdargs.out_format
     percentiles = cmdargs.percentile
     plevels = np.asarray(percentiles) * 0.01
 
     raster_ds = gdal.Open(in_grid_raster, gdal.GA_ReadOnly)
-    band = raster_ds.GetRasterBand(1)
+    band = raster_ds.GetRasterBand(iband)
+    if band is None:
+        msg = 'No band found for given band index {0:d}'.format(iband)
+        raise RuntimeError(msg)
     ndv = band.GetNoDataValue()
     grid_z = band.ReadAsArray()
     if grid_z.dtype.kind in np.typecodes['Float']:
