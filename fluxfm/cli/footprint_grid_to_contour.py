@@ -77,14 +77,13 @@ def main(cmdargs):
     grid_y = np.reshape(grid_y, iy.shape)
 
     # Figure out the levels of grid_z values at each level of percentile
-    # (integral of grid_z values enclosed by a contour line).  Refer to the
-    # following page for better understanding of using numpy's broadcasting
-    # rules to find contour levels of grid_z.
-    # https://stackoverflow.com/questions/37890550/python-plotting-percentile-contour-lines-of-a-probability-distribution
-    t = np.arange(np.min(grid_z[zflag]), np.max(grid_z[zflag]), eps)
-    grid_z[np.logical_not(zflag)] = 0
-    integral = ((grid_z >= t[:, None, None]) * grid_z).sum(axis=(1,2))
-    
+    # (integral of grid_z values enclosed by a contour line at a level of z,
+    # that is, integral of z values > a z level, because by definition, z
+    # values within a contour line of z level should be all larger than this z
+    # level). 
+    sorted_z = np.sort(grid_z[zflag])[::-1]
+    integral = np.cumsum(sorted_z)
+
     # It is possible that the entire domain of the input grid does not cover
     # 100% of the footprint, we can only draw contour lines to the maximum
     # percentile the entire domain contains.
@@ -99,7 +98,7 @@ def main(cmdargs):
                 + '{1:f}'
         msg = msg.format(integral.max()*100, np.max(plevels))
         warnings.warn(msg)
-    zlevels = np.interp(plevels, integral[::-1], t[::-1])
+    zlevels = np.interp(plevels, integral, sorted_z)
 
     # Using matplotlib to generate contour lines.
     zlevels = zlevels[::-1]
