@@ -2,6 +2,7 @@
 
 import os
 import argparse
+import warnings
 
 import numpy as np
 
@@ -89,6 +90,15 @@ def main(cmdargs):
     # percentile the entire domain contains.
     sflag = plevels < integral.max()
     plevels = plevels[sflag]
+    if not np.all(sflag):
+        msg = 'The extent of input raster only covers up to ' \
+                + '{0:.3f}% of footprint, not large enough ' \
+                + 'to cover all the given cumulative percentiles ' \
+                + 'of contour lines to plot.' \
+                + '\nThe highest percentile of the output contour lines is ' \
+                + '{1:f}'
+        msg = msg.format(integral.max()*100, np.max(plevels))
+        warnings.warn(msg)
     zlevels = np.interp(plevels, integral[::-1], t[::-1])
 
     # Using matplotlib to generate contour lines.
