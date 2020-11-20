@@ -22,13 +22,15 @@ def getCmdArgs():
             type=int, required=False, default=1, 
             help='''Index to the band in the raster file to use for generating
             contour lines, with first band being 1. Default: 1.''')
+
+    defval = np.arange(10, 100, 10).tolist()
     p.add_argument('-p', '--percentile', dest='percentile', 
             metavar='PERCENTILE_LEVEL', 
             type=float, nargs='+', required=False, 
-            default=np.arange(10, 100, 10).tolist(), 
+            default=defval, 
             help='''Percentile levels where to draw contour lines. The integral
             amount of contribution to footprint within a contour line will be
-            its associated percentile.''')
+            its associated percentile. Default: {0:s}'''.format(str(defval)))
     p.add_argument('--format', dest='out_format', 
             metavar='OUTPUT_VECTOR_FORMAT', required=False, default='GPKG', 
             help='''Format of output vector file of contour lines. Default:
