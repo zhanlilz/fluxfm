@@ -15,13 +15,24 @@ from matplotlib import pyplot as plt
 gdal.AllRegister()
 
 def getCmdArgs():
-    p = argparse.ArgumentParser(description='Convert footprint grid to contour lines saved in a vector file.')
+    p = argparse.ArgumentParser(description='''Convert footprint grid to
+            contour lines saved in a vector file.''')
 
-    p.add_argument('-p', '--percentile', dest='percentile', metavar='PERCENTILE_LEVEL', \
-            type=float, nargs='+', required=False, default=np.arange(10, 100, 10).tolist(), help='Percentile levels where to draw contour lines. The integral amount of contribution to footprint within a contour line will be its associated percentile.')
-    p.add_argument('--format', dest='out_format', metavar='OUTPUT_VECTOR_FORMAT', required=False, default='GPKG', help='Format of output vector file of contour lines. Default: GPKG')
-    p.add_argument(dest='in_grid', metavar='INPUT_GRID', help='Input raster file of footprint grid.')
-    p.add_argument(dest='out_contour', metavar='OUTPUT_CONTOUR', help='Output vector file of contour lines.')
+    p.add_argument('-p', '--percentile', dest='percentile', 
+            metavar='PERCENTILE_LEVEL', 
+            type=float, nargs='+', required=False, 
+            default=np.arange(10, 100, 10).tolist(), 
+            help='''Percentile levels where to draw contour lines. The integral
+            amount of contribution to footprint within a contour line will be
+            its associated percentile.''')
+    p.add_argument('--format', dest='out_format', 
+            metavar='OUTPUT_VECTOR_FORMAT', required=False, default='GPKG', 
+            help='''Format of output vector file of contour lines. Default:
+            GPKG''')
+    p.add_argument(dest='in_grid', metavar='INPUT_GRID', 
+            help='''Input raster file of footprint grid.''')
+    p.add_argument(dest='out_contour', metavar='OUTPUT_CONTOUR', 
+            help='''Output vector file of contour lines.''')
 
     cmdargs = p.parse_args()
     return cmdargs
