@@ -25,13 +25,14 @@ def getCmdArgs():
             contour lines, with first band being 1. Default: 1.''')
 
     defval = np.arange(10, 100, 10).tolist()
-    p.add_argument('-p', '--percentile', dest='percentile', 
-            metavar='PERCENTILE_LEVEL', 
+    p.add_argument('-p', '--percentage', dest='percentage', 
+            metavar='PERCENTAGE_LEVEL', 
             type=float, nargs='+', required=False, 
             default=defval, 
-            help='''Percentile levels where to draw contour lines. The integral
-            amount of contribution to footprint within a contour line will be
-            its associated percentile. Default: {0:s}'''.format(str(defval)))
+            help='''Cumulative percentage levels where to draw contour lines.
+            The integral percentage of contribution to footprint within a
+            contour line will be its associated percentage. Default:
+            {0:s}'''.format(str(defval)))
     p.add_argument('--format', dest='out_format', 
             metavar='OUTPUT_VECTOR_FORMAT', required=False, default='GPKG', 
             help='''Format of output vector file of contour lines. Default:
@@ -49,8 +50,8 @@ def main(cmdargs):
     out_contour_vector = cmdargs.out_contour
     iband = cmdargs.band
     out_format = cmdargs.out_format
-    percentiles = cmdargs.percentile
-    plevels = np.asarray(percentiles) * 0.01
+    percentages = cmdargs.percentage
+    plevels = np.asarray(percentages) * 0.01
     plevels = np.sort(plevels)
 
     raster_ds = gdal.Open(in_grid_raster, gdal.GA_ReadOnly)
@@ -78,7 +79,7 @@ def main(cmdargs):
     grid_x = np.reshape(grid_x, ix.shape)
     grid_y = np.reshape(grid_y, iy.shape)
 
-    # Figure out the levels of grid_z values at each level of percentile
+    # Figure out the levels of grid_z values at each level of percentage
     # (integral of grid_z values enclosed by a contour line at a level of z,
     # that is, integral of z values > a z level, because by definition, z
     # values within a contour line of z level should be all larger than this z
@@ -88,15 +89,15 @@ def main(cmdargs):
 
     # It is possible that the entire domain of the input grid does not cover
     # 100% of the footprint, we can only draw contour lines to the maximum
-    # percentile the entire domain contains.
+    # percentage the entire domain contains.
     sflag = plevels < integral.max()
     plevels = plevels[sflag]
     if not np.all(sflag):
         msg = 'The extent of input raster only covers up to ' \
                 + '{0:.3f}% of footprint, not large enough ' \
-                + 'to cover all the given cumulative percentiles ' \
+                + 'to cover all the given cumulative percentages ' \
                 + 'of contour lines to plot.' \
-                + '\nThe highest percentile of the output contour lines is ' \
+                + '\nThe highest percentage of the output contour lines is ' \
                 + '{1:f}'
         msg = msg.format(integral.max()*100, np.max(plevels))
         warnings.warn(msg)
