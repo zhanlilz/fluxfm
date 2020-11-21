@@ -73,7 +73,8 @@ def main(cmdargs):
     nx, ny = raster_ds.RasterXSize, raster_ds.RasterYSize
     ix, iy = np.meshgrid(np.arange(0.5, nx), np.arange(0.5, ny))
 
-    grid_x, grid_y = zip(*[fwd*(xval, yval) for xval, yval in zip(ix[:], iy[:])])
+    grid_x, grid_y = zip(*[fwd*(xval, yval) 
+        for xval, yval in zip(ix[:], iy[:])])
     grid_x = np.reshape(grid_x, ix.shape)
     grid_y = np.reshape(grid_y, iy.shape)
 
@@ -110,7 +111,8 @@ def main(cmdargs):
     vector_ds = ogr_driver.CreateDataSource(out_contour_vector)
     layer_name = os.path.basename(out_contour_vector)
     layer_name = '.'.join(layer_name.split('.')[:-1])
-    layer = vector_ds.CreateLayer(layer_name, raster_ds.GetSpatialRef(), ogr.wkbMultiLineString)
+    layer = vector_ds.CreateLayer(layer_name, raster_ds.GetSpatialRef(), 
+            ogr.wkbMultiLineString)
     field_def = ogr.FieldDefn('zlevel', ogr.OFTReal)
     # field_def.SetPrecision(10)
     layer.CreateField(field_def)
