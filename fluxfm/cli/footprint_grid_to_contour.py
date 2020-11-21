@@ -51,6 +51,7 @@ def main(cmdargs):
     out_format = cmdargs.out_format
     percentiles = cmdargs.percentile
     plevels = np.asarray(percentiles) * 0.01
+    plevels = np.sort(plevels)
 
     raster_ds = gdal.Open(in_grid_raster, gdal.GA_ReadOnly)
     band = raster_ds.GetRasterBand(iband)
