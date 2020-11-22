@@ -90,7 +90,7 @@ def main(cmdargs):
     # It is possible that the entire domain of the input grid does not cover
     # 100% of the footprint, we can only draw contour lines to the maximum
     # percentage the entire domain contains.
-    sflag = plevels < integral.max()
+    sflag = plevels <= integral.max()
     plevels = plevels[sflag]
     if not np.all(sflag):
         msg = 'The extent of input raster only covers up to ' \
@@ -100,6 +100,24 @@ def main(cmdargs):
                 + '\nThe highest percentage of the output contour lines is ' \
                 + '{1:f}'
         msg = msg.format(integral.max()*100, np.max(plevels))
+        warnings.warn(msg)
+    # It is also possible that the peak pixel has a very large contribution
+    # percentage that we cannot plot contour lines of small given percentages. 
+    sflag = plevels >= integral.min()
+    plevels = plevels[sflag]
+    if not np.all(sflag):
+        msg = 'The peak pixel of input raster covers ' \
+                + '{0:.3f}% of footprint, not small enough ' \
+                + 'to resolve all the given cumulative percentages ' \
+                + 'of contour lines to plot.' \
+                + '\nThe lowest percentage of the output contour lines is ' \
+                + '{1:f}'
+        msg = msg.format(integral.min()*100, np.min(plevels))
+        warnings.warn(msg)
+    # If we do not have any valid plevels left ...
+    if len(plevels) < 1:
+        msg = 'Given levels of percentage are either too small or too large ' \
+                + 'to draw contour lines from the given raster.'
         warnings.warn(msg)
     zlevels = np.interp(plevels, integral, sorted_z)
 
