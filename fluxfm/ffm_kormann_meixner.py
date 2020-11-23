@@ -5,6 +5,8 @@
 # Zhan Li, zhanli@gfz-potsdam.de
 # Created: Sat Aug 22 18:41:23 CEST 2020
 
+import warnings
+
 import numpy as np
 from scipy import special as spsp
 
@@ -206,6 +208,12 @@ def estimateFootprint(zm, z0, ws, ustar, mo_len, sigma_v, \
     # von Karman constant
     k = von_karman
 
+    # set up the output grid
+    xmin, xmax, ymin, ymax = tuple(grid_domain)
+    grid_x, grid_y = np.meshgrid(np.arange(xmin+0.5*grid_res, xmax, grid_res), \
+            np.arange(ymax-0.5*grid_res, ymin, -grid_res))
+    grid_ffm = np.zeros_like(grid_x)
+    
     # phi_m, Eq. (33) in (Kormann and Meixner, 2001), stability function
     phi_m = _phiM(np.asarray([zm]), np.asarray([mo_len]))[0]
     # phi_c, Eq. (34) in (Kormann and Meixner, 2001), stability function
@@ -225,6 +233,18 @@ def estimateFootprint(zm, z0, ws, ustar, mo_len, sigma_v, \
     # U, from solving Eq. (11) & (31) in (Kormann and Meixner, 2001), constant
     # of wind velocity in u(z)=U*z^m under the power-law wind profile.
     U = ustar * (np.log(zm / z0) + psi_m) / (k * zm**m)
+    if U < 0:
+        # Physically impossible
+        msg = 'U in Eq. (11) of Kormann & Meixner, 2001 is estimated ' \
+                + 'negative as {0:.3f}, physically impossible! ' \
+                + 'Return empty footprint.'
+        msg = msg.format(U)
+        msg = msg + '\n' \
+                + 'zm = {0:.3f}, z0 = {1:.3f}, ws = {2:.3f}, ' \
+                + 'ustar = {3:.3f}, L = {4:.3f}, sigma_v = {5:.3f}'
+        msg = msg.format(zm, z0, ws, ustar, mo_len, sigma_v)
+        warnings.warn(msg)
+        return grid_x, grid_y, grid_ffm
 
     # r, p.213 in (Kormann and Meixner, 2001), shape factor
     r = 2 + m - n
@@ -249,12 +269,6 @@ def estimateFootprint(zm, z0, ws, ustar, mo_len, sigma_v, \
     # will cancel a pair of gamma(mu) and hence reduce some computational
     # errors in the final footprint calculation.
     num = (1 / np.sqrt(2 * np.pi)) * Xi**mu;
-
-    # set up the output grid
-    xmin, xmax, ymin, ymax = tuple(grid_domain)
-    grid_x, grid_y = np.meshgrid(np.arange(xmin+0.5*grid_res, xmax, grid_res), \
-            np.arange(ymax-0.5*grid_res, ymin, -grid_res))
-    grid_ffm = np.zeros_like(grid_x)
 
     if wd is None:
         # No wind direction given, the footprint grid aligns with along-wind
