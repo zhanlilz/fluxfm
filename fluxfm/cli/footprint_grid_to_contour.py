@@ -67,6 +67,12 @@ def main(cmdargs):
     else:
         eps = 1
         zflag = grid_z != ndv
+    if np.sum(zflag) < 1:
+        # no valid z values ...
+        msg = 'No valid values of source weight in ' \
+                + 'the given footprint raster {0:s}'
+        msg = msg.format(in_grid_raster)
+        raise RuntimeError(msg) 
 
     geotransform = raster_ds.GetGeoTransform()
     fwd = Affine.from_gdal(*geotransform)
@@ -92,6 +98,12 @@ def main(cmdargs):
     # percentage the entire domain contains.
     sflag = plevels <= integral.max()
     plevels = plevels[sflag]
+    # If we do not have any valid plevels left ...
+    if len(plevels) < 1:
+        msg = 'Given levels of percentage are either too small or too large ' \
+                + 'to draw contour lines from the given raster {0:s}.'
+        msg = msg.format(in_grid_raster)
+        raise RuntimeError(msg)
     if not np.all(sflag):
         msg = 'The extent of input raster only covers up to ' \
                 + '{0:.3f}% of footprint, not large enough ' \
@@ -105,6 +117,12 @@ def main(cmdargs):
     # percentage that we cannot plot contour lines of small given percentages. 
     sflag = plevels >= integral.min()
     plevels = plevels[sflag]
+    # If we do not have any valid plevels left ...
+    if len(plevels) < 1:
+        msg = 'Given levels of percentage are either too small or too large ' \
+                + 'to draw contour lines from the given raster {0:s}.'
+        msg = msg.format(in_grid_raster)
+        raise RuntimeError(msg)
     if not np.all(sflag):
         msg = 'The peak pixel of input raster covers ' \
                 + '{0:.3f}% of footprint, not small enough ' \
@@ -114,11 +132,7 @@ def main(cmdargs):
                 + '{1:f}'
         msg = msg.format(integral.min()*100, np.min(plevels))
         warnings.warn(msg)
-    # If we do not have any valid plevels left ...
-    if len(plevels) < 1:
-        msg = 'Given levels of percentage are either too small or too large ' \
-                + 'to draw contour lines from the given raster.'
-        warnings.warn(msg)
+    
     zlevels = np.interp(plevels, integral, sorted_z)
 
     # Using matplotlib to generate contour lines.
