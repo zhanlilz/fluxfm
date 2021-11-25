@@ -64,12 +64,18 @@ def getSampleIni():
     ; Standard deviation of cross-wind speed, m*s^-1
     crosswind_speed_sd = 0.618
 
-    ; Spatial reference system of the output grid in GDAL-supported format.
-    ; Leave it empty for non-georeferenced simple coordinate system. 
+    ; Spatial reference system (SRS) of the output grid in GDAL-supported
+    ; format. See
+    ; https://gdal.org/programs/gdalsrsinfo.html?highlight=srs_def#cmdoption-gdalsrsinfo-arg-srs_def
+    ; for details on GDAL-supported formats of SRS. The easiest format is to use
+    ; an EPSG code, for example, "epsg:32633" is the SRS of WGS 84 / UTM zone
+    ; 33N. Go to https://epsg.io/ to find the EPSG code your desired SRS. Leave
+    ; it empty for non-georeferenced simple coordinate system. 
     grid_spatial_reference = epsg:32633
     
-    ; Domain of the output grid on which the footprint to be estimated, 
-    ; given in (xmin, xmax, ymin, ymax) in four lines, meter
+    ; Domain of the output grid on which the footprint to be estimated, given in
+    ; (xmin, xmax, ymin, ymax) in four values separated by at least space
+    ; characters, meter in the coordinate system given by the option *grid_srs*.
     grid_domain = 360805.0
                   361645.0
                   5971365.0
@@ -79,7 +85,7 @@ def getSampleIni():
     grid_resolution = 0.1 
     
     ; Location (x, y) of receptor/measurement in the coordinate system of the
-    ; grid.
+    ; output grid in two values separated by at least space characters.
     receptor_location = 361224.023952403
                         5971784.23062857 
 
